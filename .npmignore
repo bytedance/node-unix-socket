@@ -8,3 +8,5 @@ npm
 rustfmt.toml
 yarn.lock
 *.node
+
+check.py

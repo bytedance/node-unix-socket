@@ -168,21 +168,6 @@ impl DgramSocketWrap {
     Ok(())
   }
 
-  fn emit_error(&mut self, error: napi::Error) {
-    let env = self.env;
-
-    env
-      .run_in_scope(|| {
-        let event = env.create_string("_error").unwrap();
-        let error = self.env.create_error(error).unwrap();
-        self
-          .emitter.emit(&[event.into_unknown(), error.into_unknown()])
-          .unwrap();
-        Ok(())
-      })
-      .unwrap();
-  }
-
   fn start_recv(&mut self, env: Env) -> Result<()> {
     let uv_loop = get_loop(&env)?;
 
@@ -409,6 +394,7 @@ impl DgramSocketWrap {
 
     let event = env.create_string("close")?;
     self.emitter.emit(&[event.into_unknown()])?;
+    self.emitter.unref()?;
 
     Ok(())
   }
@@ -527,6 +513,7 @@ extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   unsafe {
     let handle = Box::from_raw(handle);
-    Box::from_raw(handle.data as *mut HandleData);
+    let mut data = Box::from_raw(handle.data as *mut HandleData);
+    data.unref().unwrap();
   };
 }

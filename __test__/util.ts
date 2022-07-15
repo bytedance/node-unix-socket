@@ -10,7 +10,7 @@ export function wait(t: number) {
   })
 }
 
-export function sliently(fn: any) {
+export function silently(fn: any) {
   try { fn() } catch (_) { }
 }
 

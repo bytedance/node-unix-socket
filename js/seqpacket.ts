@@ -11,14 +11,16 @@ import {
   seqWrite,
 } from './addon'
 
-// type ConnectionCb = (socket: SeqpacketSocket, addr: string) => void;
-type NotifyCb = () => void;
+export type NotifyCb = () => void;
 
 function wrapSocket(obj: EventEmitter, fd?: number) {
   obj.emit = obj.emit.bind(obj);
   seqCreateSocket(obj, fd);
 }
 
+/**
+ * TODO add docs
+ */
 export class SeqpacketServer extends EventEmitter {
   private closed: boolean = false
 
@@ -71,6 +73,9 @@ export class SeqpacketServer extends EventEmitter {
   // }
 }
 
+/**
+ * TODO add docs
+ */
 export class SeqpacketSocket extends EventEmitter {
   private destroyed: boolean = false
   private connectCb?: NotifyCb;

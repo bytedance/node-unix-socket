@@ -1,7 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { DgramSocket } from '../js/index';
-import { kTmp, sliently, createDefer } from './util';
+import { kTmp, silently, createDefer } from './util';
 
 const kServerPath = path.resolve(kTmp, './server.sock');
 const kClientPath = path.resolve(kTmp, './client.sock');
@@ -11,11 +12,11 @@ const emptyFn = () => {};
 
 describe('DgramSocket', () => {
   beforeAll(() => {
-    sliently(() => fs.mkdirSync(kTmp));
+    silently(() => fs.mkdirSync(kTmp));
   });
   beforeEach(async () => {
-    sliently(() => fs.unlinkSync(kServerPath));
-    sliently(() => fs.unlinkSync(kClientPath));
+    silently(() => fs.unlinkSync(kServerPath));
+    silently(() => fs.unlinkSync(kClientPath));
   });
 
   it('should work', async () => {
@@ -288,13 +289,15 @@ describe('DgramSocket', () => {
   it('shoud set/send recv/send buffer size', () => {
     const server = new DgramSocket();
 
-    const size = 511;
+    const size = 10000;
+    const expectedSize = os.platform() === 'linux' ? size * 2 : size;
+
 
     server.setRecvBufferSize(size);
-    expect(server.getRecvBufferSize()).toBe(size);
+    expect(server.getRecvBufferSize()).toBe(expectedSize);
 
     server.setSendBufferSize(size);
-    expect(server.getSendBufferSize()).toBe(size);
+    expect(server.getSendBufferSize()).toBe(expectedSize);
 
     server.close();
   });

@@ -1,17 +1,18 @@
 {
   "name": "unix-socket",
   "version": "0.0.0",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "main": "js/index.js",
+  "types": "js/index.d.ts",
   "scripts": {
     "artifacts": "napi artifacts",
     "build": "napi build --platform --js false --dts js/addon.d.ts && npm run build:ts",
     "build:release": "napi build --platform --release --js false --dts js/addon.d.ts && npm run build:ts",
-    "build:ts": "tsc js/*.ts",
+    "build:ts": "tsc -p tsconfig.json",
+    "check_mem": "node --max-old-space-size=128 scripts/dgram_memory.js",
+    "doc": "typedoc --excludePrivate --excludeInternal --excludeExternals js/index.ts",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "jest --testRegex '__test__/(.+).spec.ts' --runInBand",
     "test:dumb": "TERM=dumb npm run test",
-    "check_mem": "node --max-old-space-size=128 scripts/dgram_memory.js",
     "version": "napi version"
   },
   "napi": {
@@ -25,10 +26,11 @@
   "license": "MIT",
   "devDependencies": {
     "@napi-rs/cli": "^2.6.2",
-    "@types/jest": "^27.4.1",
+    "@types/jest": "^27.5.0",
+    "@types/node": "^17.0.31",
     "jest": "^27.5.1",
-    "jsdoc": "^3.6.10",
     "ts-jest": "^27.1.4",
+    "typedoc": "^0.22.15",
     "typescript": "^4.6.3"
   },
   "engines": {

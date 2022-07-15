@@ -1,7 +1,7 @@
 use std::mem;
 use std::{str::FromStr};
 
-use libc::{sockaddr_un, c_void};
+use libc::{sockaddr_un};
 use napi::{Result, Env, Ref, JsFunction, JsUnknown, JsObject};
 use uv_sys::sys;
 use crate::util::{get_err, error};
@@ -21,15 +21,25 @@ pub(crate) fn close(fd: i32) -> Result<()> {
 
   Ok(())
 }
-pub(crate) unsafe fn sockaddr_from_string(bytes: &str) -> Result<(sockaddr_un, usize)> {
+
+#[cfg(target_os = "macos")]
+fn sun_family() -> u8 {
+  libc::AF_UNIX as u8
+}
+
+#[cfg(target_os = "linux")]
+fn sun_family() -> u16 {
+  libc::AF_UNIX as u16
+}
+
+pub(crate) fn sockaddr_from_string(bytes: &str) -> Result<(sockaddr_un, usize)> {
   let mut bytes = String::from_str(bytes).unwrap();
   bytes.push('\0');
 
-  let mut sockaddr = mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init();
-  sockaddr.sun_len = 0;
+  let mut sockaddr = unsafe { mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init() };
   // looks like `sun_len` is not necessary
   // (*sockaddr).sun_len = bytes.len() as u8;
-  sockaddr.sun_family = libc::AF_UNIX as u8;
+  sockaddr.sun_family = sun_family();
 
   let size = mem::size_of_val(&sockaddr.sun_path);
 
@@ -37,7 +47,7 @@ pub(crate) unsafe fn sockaddr_from_string(bytes: &str) -> Result<(sockaddr_un, u
     return Err(error("path to bind is too long".to_string()));
   }
   let path = (&mut sockaddr.sun_path.as_mut_slice()[0..bytes.len()]) as *mut _ as *mut [u8];
-  let path = &mut *path;
+  let path = unsafe { &mut *path };
   path.clone_from_slice(bytes.as_bytes());
 
   Ok((sockaddr, mem::size_of::<sockaddr_un>()))
@@ -65,7 +75,7 @@ impl Emitter {
     })
   }
 
-  fn unref(&mut self) -> Result<()> {
+  pub fn unref(&mut self) -> Result<()> {
     let mut emit_ref = self.emit_ref.take();
 
     match emit_ref.as_mut() {
@@ -120,13 +130,6 @@ pub(crate) struct HandleData {
   this_ref: Ref<()>,
 }
 
-impl Drop for HandleData {
-  fn drop(&mut self) {
-    let env = self.env;
-    self.this_ref.unref(env).unwrap();
-  }
-}
-
 impl HandleData {
   pub fn new(env: Env, this: JsObject) -> Result<Self> {
     let this_ref = env.create_reference(this)?;
@@ -145,5 +148,11 @@ impl HandleData {
       Ok(native)
     })?;
     Ok(native)
+  }
+
+  pub fn unref(&mut self) -> Result<()> {
+    let env = self.env;
+    self.this_ref.unref(env)?;
+    Ok(())
   }
 }

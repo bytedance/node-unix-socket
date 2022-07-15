@@ -13,13 +13,17 @@ import {
 } from './addon';
 
 type FnRecv = (err: undefined | Error, buf: Buffer) => void;
-type FnSend = (err: undefined | Error) => void;
+export type SendCb = (err: undefined | Error) => void;
 
 function wrapSocket(obj: DgramSocket) {
   obj.emit = obj.emit.bind(obj);
   dgramCreateSocket(obj);
 }
 
+/**
+ * DgramSocket docs
+ * @public
+ */
 export class DgramSocket extends EventEmitter {
   private closed: boolean = false;
 
@@ -50,17 +54,35 @@ export class DgramSocket extends EventEmitter {
     }
   }
 
+  /**
+   * Returns the average of two numbers.
+   *
+   * @remarks
+   * This method is part of the {@link core-library#Statistics | Statistics subsystem}.
+   *
+   * @param x - The first input number
+   * @param y - The second input number
+   * @returns The arithmetic mean of `x` and `y`
+   */
   bind(socketPath: string) {
     this.checkClosed();
     dgramBind(this, socketPath);
   }
 
+  /**
+   * TODO sendTo
+   * @param buf
+   * @param offset
+   * @param length
+   * @param destPath
+   * @param onWrite
+   */
   sendTo(
     buf: Buffer,
     offset: number,
     length: number,
     destPath: string,
-    onWrite?: FnSend
+    onWrite?: SendCb
   ) {
     this.checkClosed();
     dgramSendTo(this, buf, offset, length, destPath, onWrite);

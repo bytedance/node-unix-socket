@@ -122,8 +122,8 @@ pub fn seq_shutdown_when_flushed(env: Env, ee: JsObject) -> Result<()> {
 impl SeqpacketSocketWrap {
   fn wrap_obj(env: Env, mut this: JsObject, fd: Option<JsNumber>) -> Result<()> {
     // TODO
-    // let ty = libc::SOCK_SEQPACKET;
-    let ty = libc::SOCK_STREAM;
+    let ty = libc::SOCK_SEQPACKET;
+    // let ty = libc::SOCK_STREAM;
     let domain = libc::AF_UNIX;
     let protocol = 0;
     let fd: i32 = match fd {
@@ -198,6 +198,7 @@ impl SeqpacketSocketWrap {
     socket::close(self.fd)?;
     self.state = State::Closed;
     self.emitter.emit_event("close")?;
+    self.emitter.unref()?;
 
     Ok(())
   }
@@ -240,7 +241,7 @@ impl SeqpacketSocketWrap {
   }
 
   fn handle_connect(&mut self, status: i32, _events: i32) {
-    if !self.check_uv_status(status) {
+    if !self.check_uv_status(status, "handle_connect") {
       return;
     }
 
@@ -249,7 +250,7 @@ impl SeqpacketSocketWrap {
   }
 
   fn handle_socket(&mut self, status: i32, _events: i32) {
-    if !self.check_uv_status(status) {
+    if !self.check_uv_status(status, "handle_socket") {
       return;
     }
     let mut addr = unsafe { mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init() };
@@ -290,7 +291,7 @@ impl SeqpacketSocketWrap {
   }
 
   fn handle_io(&mut self, status: i32, events: i32) {
-    if !self.check_uv_status(status) {
+    if !self.check_uv_status(status, "handle_io") {
       return;
     }
 
@@ -482,10 +483,10 @@ impl SeqpacketSocketWrap {
     Ok(())
   }
 
-  fn check_uv_status(&mut self, status: i32) -> bool {
+  fn check_uv_status(&mut self, status: i32, op: &str) -> bool {
     if status < 0 {
       let msg = uv_err_msg(status);
-      let err = error(format!("uv callback of failed with error: {}", &msg));
+      let err = error(format!("uv callback of {} failed with error: {}", op, &msg));
       self.emit_error(err);
       return false;
     }
@@ -617,7 +618,8 @@ impl SeqpacketSocketWrap {
 
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   unsafe {
-    Box::from_raw((*handle).data as *mut HandleData);
+    let mut data = Box::from_raw((*handle).data as *mut HandleData);
+    data.unref().unwrap();
     Box::from_raw(handle);
   };
 }

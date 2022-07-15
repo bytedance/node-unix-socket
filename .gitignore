@@ -4,6 +4,16 @@ target
 .tmp
 test.js
 
+out
+temp
+dist
+etc
+docs
+
+package-lock.json
 js/**/*.js
+js/**/*.js.map
+js/**/*.d.ts
+js/tsdoc-metadata.json
 !js/addon.js
 test.ts

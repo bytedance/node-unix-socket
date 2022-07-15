@@ -147,6 +147,4 @@ setInterval(() => {
 ```
 
 ## LICENSE
-
-## TODO
-- seqpacket sockets should be closed automatically
+MIT

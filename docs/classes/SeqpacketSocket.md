@@ -66,7 +66,7 @@ EventEmitter.constructor
 
 #### Defined in
 
-seqpacket.ts:148
+seqpacket.ts:150
 
 ## Methods
 
@@ -92,7 +92,7 @@ However, connect() will throw error synchronously if the 'serverPath' is not a v
 
 #### Defined in
 
-seqpacket.ts:210
+seqpacket.ts:222
 
 ___
 
@@ -108,7 +108,7 @@ Ensures that no more I/O activity happens on this socket. Destroys the stream an
 
 #### Defined in
 
-seqpacket.ts:273
+seqpacket.ts:289
 
 ___
 
@@ -130,7 +130,7 @@ Half-closes the socket. i.e., it sends a FIN packet. It is possible the server w
 
 #### Defined in
 
-seqpacket.ts:232
+seqpacket.ts:248
 
 ___
 
@@ -148,7 +148,7 @@ Default size is 256KB.
 
 #### Defined in
 
-seqpacket.ts:243
+seqpacket.ts:259
 
 ___
 
@@ -164,7 +164,7 @@ Reference the socket so that it will prevent Node.js process from exiting automa
 
 #### Defined in
 
-seqpacket.ts:259
+seqpacket.ts:275
 
 ___
 
@@ -186,7 +186,7 @@ Set the size of buffer that SeqpacketSocket uses to receive data.
 
 #### Defined in
 
-seqpacket.ts:252
+seqpacket.ts:268
 
 ___
 
@@ -202,13 +202,13 @@ Unreference the socket so that it won't prevent Node.js process from exiting aut
 
 #### Defined in
 
-seqpacket.ts:266
+seqpacket.ts:282
 
 ___
 
 ### write
 
-▸ **write**(`buf`, `offset`, `length`, `cb?`): `void`
+▸ **write**(`buf`, `offset?`, `length?`, `cb?`): `void`
 
 Sends data on the socket.
 
@@ -217,8 +217,8 @@ Sends data on the socket.
 | Name | Type |
 | :------ | :------ |
 | `buf` | `Buffer` |
-| `offset` | `number` |
-| `length` | `number` |
+| `offset?` | `number` |
+| `length?` | `number` |
 | `cb?` | [`NotifyCb`](../modules.md#notifycb) |
 
 #### Returns
@@ -227,4 +227,4 @@ Sends data on the socket.
 
 #### Defined in
 
-seqpacket.ts:223
+seqpacket.ts:235

@@ -41,6 +41,6 @@ export function hasIPv6() {
   const re = isWindows ? /Loopback Pseudo-Interface/ : /lo/;
   return Object.keys(iFaces).some((name) => {
     return re.test(name) &&
-           iFaces[name].some(({ family }) => family === 'IPv6');
+           iFaces[name]?.some(({ family }) => family === 'IPv6');
   });
 }

@@ -3,3 +3,6 @@ target
 *.node
 .tmp
 test.js
+
+js/**/*.js
+!js/addon.js

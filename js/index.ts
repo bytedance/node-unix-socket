@@ -1,1 +1,1 @@
-export { DgramSocketWrap } from './addon'
+export { DgramSocket } from './dgram_socket'

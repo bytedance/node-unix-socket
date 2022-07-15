@@ -1,21 +1,24 @@
+use std::mem;
 use std::{
-  borrow::BorrowMut, collections::LinkedList, ffi::CString, intrinsics::transmute, io::Write,
-  str::FromStr,
+  collections::LinkedList, ffi::CString, intrinsics::transmute, str::FromStr,
 };
 
-use crate::util::{error, extend_life, get_err, nix_err, resolve_libc_err, resolve_uv_err};
 use libc::{
-  self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINPROGRESS, EINTR, ENOBUFS,
-  EWOULDBLOCK,
+  self, c_void, iovec, msghdr, sockaddr, sockaddr_un,
+  EAGAIN, EINPROGRESS, EINTR, ENOBUFS, EWOULDBLOCK,
 };
-use napi::{Env, JsBuffer, JsFunction, JsUnknown, Ref, Result};
+use napi::{Env, JsBuffer, JsFunction, JsObject, JsUnknown, Ref, Result};
 use nix::{
   self,
   errno::errno,
   fcntl::{fcntl, FcntlArg, OFlag},
 };
-use std::mem;
 use uv_sys::sys::{self, uv_poll_event};
+
+use crate::util::{
+  error, get_err, nix_err, resolve_libc_err, resolve_uv_err,
+  str_from_u8_nul_utf8_unchecked,
+};
 
 fn set_non_block(fd: i32) -> Result<()> {
   fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).map_err(nix_err)?;
@@ -28,16 +31,18 @@ fn set_clo_exec(fd: i32) -> Result<()> {
 }
 
 fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
-  unsafe {
-    let uv_loop = env.get_uv_event_loop()?;
-    let uv_loop: Box<uv_sys::sys::uv_loop_t> = Box::from_raw(uv_loop as *mut _);
-    Ok(Box::into_raw(uv_loop))
-  }
+  Ok(env.get_uv_event_loop()? as *mut _ as *mut sys::uv_loop_t)
 }
 
+fn i8_slice_into_u8_slice<'a>(slice: &'a [i8]) -> &'a [u8] {
+  unsafe { &*(slice as *const [i8] as *const [u8]) }
+}
+
+#[allow(dead_code)]
 fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
-  let trans = unsafe { &*(slice as *const [i8] as *const [u8]) };
-  let copy: Vec<u8> = vec![0; trans.len()];
+  let trans = i8_slice_into_u8_slice(slice);
+  let mut copy: Vec<u8> = vec![0; trans.len()];
+  copy.clone_from_slice(trans);
 
   String::from_utf8(copy).map_err(|_| error("failed to parse i8 slice as string".to_string()))
 }
@@ -46,18 +51,17 @@ pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
   let mut msg = unsafe { mem::MaybeUninit::<msghdr>::zeroed().assume_init() };
   let cap = 65535;
   let base = unsafe { CString::from_vec_unchecked(vec![0; cap]) };
+  let base_ptr = base.into_raw();
 
-  let iov = libc::iovec {
-    iov_base: base.into_raw() as *mut _,
+  let mut iov = libc::iovec {
+    iov_base: base_ptr as *mut _,
     iov_len: cap,
   };
-  let iov = Box::into_raw(Box::new(iov));
 
-  // TODO check sockadd length
   let mut name = unsafe { mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init() };
   let name_len = mem::size_of::<sockaddr_un>();
   msg.msg_iovlen = 1;
-  msg.msg_iov = iov;
+  msg.msg_iov = &mut iov as *mut _;
   msg.msg_name = &mut name as *mut sockaddr_un as *mut _;
   msg.msg_namelen = name_len as u32;
 
@@ -73,45 +77,53 @@ pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
   let env = &s.env;
 
   if ret == -1 {
+    unsafe { Box::from_raw(base_ptr) };
+
     let err = error(format!("recv msg failed, errno: {}", errno()));
     let err = env.create_error(err)?;
     args.push(err.into_unknown());
-    s.recv_cb.value(&s.env, |cb| cb.call(None, &args))?;
+
+    let _ = s
+      .recv_cb
+      .value(&s.env, |cb| cb.call(None, &args))
+      .map_err(|e| {
+        let _ = env.throw_error(&e.reason, None);
+      });
   } else {
     let iov = unsafe { *msg.msg_iov };
-    let iov_base = unsafe { CString::from_raw(iov.iov_base as *mut i8) };
+    // NOTE: Vec::from_raw_parts will consum the ptr and respond to reclaim it.
+    // TODO not safe
+    let iov_base = unsafe { Vec::from_raw_parts(iov.iov_base as *mut u8, iov.iov_len, iov.iov_len) };
+    let len = ret as usize;
+    let slice = iov_base[0..len].to_vec();
+
     let name = unsafe { *(msg.msg_name as *mut sockaddr_un) };
 
-    let len = name.sun_len as usize;
-    let sockname = &name.sun_path[0..len];
+    let js_sockname = {
+      let len = name.sun_len as usize;
+      let sockname = &name.sun_path[0..std::cmp::min(len, name.sun_path.len())];
+      let sockname = i8_slice_into_u8_slice(sockname);
+      let sockname = unsafe { str_from_u8_nul_utf8_unchecked(sockname) };
+      env.create_string(&sockname[0..sockname.len() - 1])?
+    };
 
-    let len = ret as usize;
-
-    let slice = iov_base.as_bytes()[0..len].to_vec();
     let buf = env.create_buffer_with_data(slice)?;
-    let sockname = string_from_i8_slice(sockname)?;
-    let sockname = env.create_string_from_std(sockname)?;
     args.push(env.get_undefined()?.into_unknown());
     args.push(buf.into_unknown());
-    args.push(sockname.into_unknown());
+    args.push(js_sockname.into_unknown());
 
-    println!("call_a");
-    s.recv_cb.value(&s.env, |cb| cb.call(None, &args))?;
-    println!("end_call_a");
+    let _ = s
+      .recv_cb
+      .value(&s.env, |cb| cb.call(None, &args))
+      .map_err(|e| {
+        let _ = env.throw_error(&e.reason, None);
+      });
   }
 
   Ok(())
 }
-
 pub fn on_writable(s: &mut Box<DgramSocketWrap>) -> Result<()> {
-  let env = s.clone_env();
-
-  env.run_in_scope(move || {
-    s.flush()?;
-    Ok(())
-  })?;
-
-  Ok(())
+  s.flush()
 }
 
 unsafe fn get_socket(data: *mut c_void) -> Box<DgramSocketWrap> {
@@ -120,39 +132,39 @@ unsafe fn get_socket(data: *mut c_void) -> Box<DgramSocketWrap> {
 }
 
 extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
-  println!("begin run_in_scope");
+  let handle = unsafe { Box::from_raw(handle) };
+  assert!(!handle.data.is_null(), "'on_event' receive null_ptr handle data");
+  let mut socket = unsafe { get_socket(handle.data) };
+  let env = socket.env;
 
-  let mut socket = unsafe { get_socket((*handle).data) };
-  let env = socket.env.clone();
+  /*
+   * FIXME(oyyd): env.run_in_scope() below might produce an EXC_BAD_ACCESS error.
+   */
+  let socket = env.run_in_scope(move || {
+    if status != 0 {
+      let _ = env.throw_error(&format!("on_event receive error status: {}", status), None);
+      return Ok(socket)
+    }
 
-  // TODO
-  if status != 0 {
-    panic!("on_event receive error status");
-  }
+    if events & uv_poll_event::UV_READABLE as i32 != 0 {
+      on_readable(&socket).map_err(|e| {
+        let _ = env.throw_error(&e.reason, None);
+        e
+      }).or::<napi::Error>(Ok(())).unwrap();
+    }
 
-  println!("before run_in_scope");
-  let socket = env
-    .run_in_scope(move || {
-      println!("a run_in_scope");
-      if events & uv_poll_event::UV_READABLE as i32 != 0 {
-        on_readable(&socket)?;
-        // TODO should poll readable again?
-      }
-      println!("b run_in_scope");
+    if events & uv_poll_event::UV_WRITABLE as i32 != 0 {
+      on_writable(&mut socket).map_err(|e| {
+        let _ = env.throw_error(&e.reason, None);
+        e
+      }).or::<napi::Error>(Ok(())).unwrap();
+    }
 
-      if events & uv_poll_event::UV_WRITABLE as i32 != 0 {
-        on_writable(&mut socket)?;
-      }
-      println!("c run_in_scope");
+    Ok(socket)
+  }).unwrap();
 
-      println!("d run_in_scope");
-
-      Ok(socket)
-    })
-    .unwrap();
-
-  println!("finish run_in_scope");
   Box::into_raw(socket);
+  Box::into_raw(handle);
 }
 
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
@@ -190,31 +202,25 @@ struct MsgItem {
   cb: Ref<JsFunction>,
 }
 
-impl Drop for DgramSocketWrap {
-  fn drop(&mut self) {
-    println!("drop DgramSocketWrap");
-  }
-}
-
 #[napi]
 pub struct DgramSocketWrap {
   fd: i32,
   // TODO env might be invalid
   env: Env,
-  // handle is a raw pointer and will be freed on on_close
+  // handle should be freed on on_close
   handle: *mut sys::uv_poll_t,
   recv_cb: Ref<JsFunction>,
   msg_queue: LinkedList<MsgItem>,
+  this: Option<Ref<JsObject>>,
 }
 
 #[napi]
 impl DgramSocketWrap {
   #[napi(constructor)]
-  pub fn new(env: Env, recv_cb: napi::JsFunction) -> Result<Self> {
+  pub fn new(env: Env, recv_cb: JsFunction) -> Result<Self> {
     let domain = libc::AF_UNIX;
     let ty = libc::SOCK_DGRAM;
     let protocol = 0;
-
     let fd = unsafe { libc::socket(domain, ty, protocol) };
 
     if fd == -1 {
@@ -225,33 +231,54 @@ impl DgramSocketWrap {
     set_non_block(fd)?;
     set_clo_exec(fd)?;
 
-    // TODO use MaybeUninit instead
-    let handle = Box::into_raw(Box::new(sys::uv_poll_t::default()));
+    let handle = Box::into_raw(Box::new(unsafe {
+      mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init()
+    }));
     let socket = Box::into_raw(Box::new(DgramSocketWrap {
       fd,
       handle,
       msg_queue: LinkedList::new(),
       env,
       recv_cb: recv_cb.into_ref()?,
+      this: None,
     }));
 
     unsafe {
       (*handle).data = socket as *mut _;
     }
 
-    // start watcher
+    Ok(unsafe { *Box::from_raw(socket) })
+  }
+
+  #[napi]
+  pub fn start_recv(&mut self, env: Env) -> Result<()> {
     let uv_loop = get_loop(&env)?;
 
     unsafe {
-      resolve_uv_err(sys::uv_poll_init(uv_loop, handle, fd))?;
+      resolve_uv_err(sys::uv_poll_init(uv_loop, self.handle, self.fd))?;
       resolve_uv_err(sys::uv_poll_start(
-        handle,
+        self.handle,
         sys::uv_poll_event::UV_READABLE as i32,
         Some(on_event),
       ))?;
     }
 
-    Ok(unsafe { *Box::from_raw(socket) })
+    Ok(())
+  }
+
+  /**
+   * NOTE: Because we can't get the "this" js object of DgramSocketWrap instances,
+   * we need to call ref_this manually in the js side to prevent the js object
+   * from been garbage-collected.
+   *
+   * TODO Is there a way to get the js object in rust side?
+   */
+  #[napi]
+  pub fn ref_this(&mut self, this_obj: JsObject) -> Result<()> {
+    let this = this_obj.into_ref()?;
+    self.this = Some(this);
+
+    Ok(())
   }
 
   #[napi]
@@ -297,6 +324,8 @@ impl DgramSocketWrap {
         }
       }
 
+      unsafe { Box::from_raw(iov.iov_base) };
+
       let mut args: Vec<JsUnknown> = vec![];
       if ret == -1 {
         let err = errno();
@@ -310,8 +339,12 @@ impl DgramSocketWrap {
       }
 
       // callback sendmsg successfully
-      item.cb.value(&self.env, |cb| cb.call(None, &args))?;
-
+      let _ = item
+        .cb
+        .value(&self.env, |cb| cb.call(None, &args))
+        .map_err(|e| {
+          let _ = self.env.throw_error(&e.reason, None);
+        });
       item.cb.unref(self.env)?;
     }
 
@@ -356,33 +389,37 @@ impl DgramSocketWrap {
 
     self.msg_queue.push_back(m);
 
-    // TODO add test
     self.flush()?;
 
     Ok(())
   }
 
   #[napi]
-  pub fn close(&mut self) -> Result<()> {
-    let ret = unsafe { libc::close(self.fd) };
-    if ret != 0 {
-      if ret != EINTR && ret != EINPROGRESS {
-        // TODO update error message
-        return Err(error(format!("close failed, code: {}", -ret)));
-      }
-    }
+  pub fn close(&mut self, env: Env) -> Result<()> {
     // stop watcher
     resolve_uv_err(unsafe { sys::uv_poll_stop(self.handle) })?;
     unsafe {
+      (*(self.handle)).data = std::ptr::null_mut();
       let handle = mem::transmute(self.handle);
       sys::uv_close(handle, Some(on_close));
     };
-    self.recv_cb.unref(self.env)?;
+
+    self.recv_cb.unref(env)?;
+    match self.this.as_mut() {
+      None => {}
+      Some(this) => {
+        this.unref(env)?;
+      }
+    }
+
+    let ret = unsafe { libc::close(self.fd) };
+
+    if ret != 0 {
+      if ret != EINTR && ret != EINPROGRESS {
+        return Err(get_err());
+      }
+    }
 
     return Ok(());
-  }
-
-  fn clone_env(&self) -> Env {
-    self.env.clone()
   }
 }

@@ -1,0 +1,34 @@
+{
+  "name": "unix-socket",
+  "version": "0.0.0",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release --dts js/addon.d.ts",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "jest --testRegex '__test__/(.+).spec.ts' --runInBand",
+    "check_mem": "node --max-old-space-size=128 scripts/dgram_memory.js",
+    "version": "napi version"
+  },
+  "napi": {
+    "name": "unix-socket",
+    "triples": {
+      "additional": [
+        "aarch64-apple-darwin"
+      ]
+    }
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.6.2",
+    "@types/jest": "^27.4.1",
+    "jest": "^27.5.1",
+    "ts-jest": "^27.1.4",
+    "typescript": "^4.6.3"
+  },
+  "engines": {
+    "node": ">= 10"
+  }
+}

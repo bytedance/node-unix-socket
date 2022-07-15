@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use crate::util::{error, get_err, resolve_libc_err, resolve_uv_err};
 use libc::{c_void, sockaddr_storage, sockaddr_un};
-use napi::{Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
+use napi::{Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result, bindgen_prelude::FromNapiValue, NapiValue};
 use uv_sys::sys;
 
 pub(crate) fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
@@ -136,11 +136,12 @@ impl HandleData {
     Ok(HandleData { env, this_ref })
   }
 
-  pub fn inner_mut_ref<'a, T: 'static>(&'a self) -> Result<&'a mut T> {
+  pub fn inner_mut_ref<'a, T: FromNapiValue>(&'a self) -> Result<T> {
     let env = self.env;
     let native = env.run_in_scope(|| {
       let obj: JsObject = self.env.get_reference_value(&self.this_ref)?;
-      let native: &mut T = self.env.unwrap(&obj)?;
+      let native: T = FromNapiValue::from_unknown(obj.into_unknown())?;
+      // let native: &mut T = self.env.unwrap(&obj)?;
       Ok(native)
     })?;
     Ok(native)
@@ -162,7 +163,7 @@ pub trait UvRefence {
     unsafe { sys::uv_ref(ptr as *mut _ as *mut sys::uv_handle_t) }
   }
 
-  fn urnef(&self) {
+  fn unref(&self) {
     let ptr = self.get_handle();
 
     unsafe { sys::uv_unref(ptr as *mut _ as *mut sys::uv_handle_t) }

@@ -28,7 +28,8 @@ struct MsgItem {
   cb: Option<Ref<()>>,
 }
 
-struct SeqpacketSocketWrap {
+#[napi]
+pub struct SeqpacketSocketWrap {
   fd: i32,
   env: Env,
   handle: *mut sys::uv_poll_t,
@@ -39,117 +40,16 @@ struct SeqpacketSocketWrap {
   emitter: Emitter,
 }
 
-fn unwrap<'a>(env: &'a Env, this: &JsObject) -> Result<&'a mut SeqpacketSocketWrap> {
-  let wrap: &mut SeqpacketSocketWrap = env.unwrap(&this)?;
-  Ok(wrap)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_create_socket(env: Env, ee: JsObject, fd: Option<JsNumber>) -> Result<()> {
-  check_emit(&ee)?;
-  SeqpacketSocketWrap::wrap_obj(env, ee, fd)?;
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_set_napi_buf_size(env: Env, ee: JsObject, size: JsNumber) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  let size = size.get_uint32()?;
-  wrap.set_read_buf_size(size);
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_get_napi_buf_size(env: Env, ee: JsObject) -> Result<JsNumber> {
-  let wrap = unwrap(&env, &ee)?;
-  let js_size = env.create_uint32(wrap.read_buf_size as u32)?;
-  Ok(js_size)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_start_recv(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.start_recv()?;
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_address(env: Env, ee: JsObject) -> Result<JsString> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.address(env)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_listen(env: Env, ee: JsObject, bindpath: JsString, backlog: JsNumber) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.listen(bindpath, backlog)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_connect(env: Env, ee: JsObject, server_path: JsString) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.connect(server_path)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_write(
-  env: Env,
-  ee: JsObject,
-  buf: JsBuffer,
-  offset: JsNumber,
-  length: JsNumber,
-  cb: Option<JsFunction>,
-) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.write(env, buf, offset, length, cb)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_close(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.close()
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_shutdown_when_flushed(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.shutdown_when_flushed()
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_ref(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.refer();
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn seq_unref(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.urnef();
-  Ok(())
-}
-
 impl UvRefence for SeqpacketSocketWrap {
   fn get_handle(&self) -> *mut sys::uv_poll_t {
-      self.handle
+    self.handle
   }
 }
 
+#[napi]
 impl SeqpacketSocketWrap {
-  fn wrap_obj(env: Env, mut this: JsObject, fd: Option<JsNumber>) -> Result<()> {
+  #[napi(constructor)]
+  pub fn new(env: Env, ee: JsObject, fd: Option<JsNumber>) -> Result<Self> {
     let ty = libc::SOCK_SEQPACKET;
     let domain = libc::AF_UNIX;
     let protocol = 0;
@@ -167,14 +67,17 @@ impl SeqpacketSocketWrap {
     set_non_block(fd)?;
     set_clo_exec(fd)?;
 
-    let emit_fn = this.get_named_property::<JsFunction>("emit")?;
+    let emit_fn = ee.get_named_property::<JsFunction>("emit")?;
     let handle = Box::into_raw(Box::new(unsafe {
-      mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init()
+      let mut handle = mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init();
+      handle.data = std::ptr::null_mut();
+      handle
     }));
+
     let uv_loop = get_loop(&env)?;
     resolve_uv_err(unsafe { sys::uv_poll_init(uv_loop, handle, fd) })?;
 
-    let wrap = Self {
+    Ok(Self {
       fd,
       emitter: Emitter::new(env, emit_fn)?,
       env,
@@ -183,17 +86,18 @@ impl SeqpacketSocketWrap {
       read_buf_size: DEFAULT_READ_BUF_SIZE,
       state: State::NewSocket,
       poll_events: 0,
-    };
-    env.wrap(&mut this, wrap)?;
+    })
+  }
 
-    let handle_data = Box::into_raw(Box::new(HandleData::new(env, this)?));
-
-    unsafe { (*handle).data = handle_data as *mut _ };
-
+  #[napi]
+  pub fn init(&mut self, env: Env, this_obj: JsObject) -> Result<()> {
+    let handle_data = Box::into_raw(Box::new(HandleData::new(env, this_obj)?));
+    unsafe { (*self.handle).data = handle_data as *mut _ };
     Ok(())
   }
 
-  fn close(&mut self) -> Result<()> {
+  #[napi]
+  pub fn close(&mut self) -> Result<()> {
     if self.state == State::Closed {
       return Ok(());
     }
@@ -229,11 +133,22 @@ impl SeqpacketSocketWrap {
     Ok(())
   }
 
-  fn shutdown_write(&mut self) -> Result<()> {
+  #[napi]
+  pub fn shutdown_write(&mut self) -> Result<()> {
     resolve_libc_err(unsafe { libc::shutdown(self.fd, libc::SHUT_WR) })?;
     self.state = State::ShutDown;
     self.emitter.emit_event("_shutdown")?;
     Ok(())
+  }
+
+  #[napi]
+  pub fn uv_refer(&mut self) {
+    self.refer();
+  }
+
+  #[napi]
+  pub fn uv_unrefer(&mut self) {
+    self.unref();
   }
 
   fn emit_error(&mut self, error: napi::Error) {
@@ -524,22 +439,33 @@ impl SeqpacketSocketWrap {
     return true;
   }
 
-  fn set_read_buf_size(&mut self, size: u32) {
+  #[napi]
+  pub fn set_read_buf_size(&mut self, size: JsNumber) -> Result<()> {
+    let size = size.get_uint32()?;
     self.read_buf_size = size as usize;
+    Ok(())
   }
 
-  fn start_recv(&mut self) -> Result<()> {
+  #[napi]
+  pub fn get_read_buf_size(&self, env: Env) -> Result<JsNumber> {
+    env.create_uint32(self.read_buf_size as u32)
+  }
+
+  #[napi]
+  pub fn start_recv(&mut self) -> Result<()> {
     self.poll_events |= sys::uv_poll_event::UV_READABLE as i32;
     self.reset_poll()?;
     Ok(())
   }
 
-  fn address(&self, env: Env) -> Result<JsString> {
+  #[napi]
+  pub fn address(&self, env: Env) -> Result<JsString> {
     let str = socket_addr_to_string(self.fd)?;
     env.create_string(&str)
   }
 
-  fn listen(&self, bindpath: JsString, backlog: JsNumber) -> Result<()> {
+  #[napi]
+  pub fn listen(&self, bindpath: JsString, backlog: JsNumber) -> Result<()> {
     // Should never call listen() with a fd for multiple times.
     let bindpath = bindpath.into_utf8()?;
     let backlog = backlog.get_int32()?;
@@ -560,7 +486,8 @@ impl SeqpacketSocketWrap {
     Ok(())
   }
 
-  fn connect(&mut self, server_path: JsString) -> Result<()> {
+  #[napi]
+  pub fn connect(&mut self, server_path: JsString) -> Result<()> {
     let server_path = server_path.into_utf8()?;
     let path = server_path.as_str()?;
     let (mut sockaddr, addr_len) = sockaddr_from_string(path)?;
@@ -605,7 +532,8 @@ impl SeqpacketSocketWrap {
     Ok(())
   }
 
-  fn write(
+  #[napi]
+  pub fn write(
     &mut self,
     env: Env,
     buf: JsBuffer,
@@ -635,7 +563,8 @@ impl SeqpacketSocketWrap {
     Ok(())
   }
 
-  fn shutdown_when_flushed(&mut self) -> Result<()> {
+  #[napi]
+  pub fn shutdown_when_flushed(&mut self) -> Result<()> {
     self.state = State::ShuttingDown;
 
     if self.msg_queue.len() == 0 {
@@ -647,6 +576,7 @@ impl SeqpacketSocketWrap {
 }
 
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
+  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
   unsafe {
     let mut data = Box::from_raw((*handle).data as *mut HandleData);
     data.unref().unwrap();
@@ -660,8 +590,9 @@ extern "C" fn on_socket(handle: *mut sys::uv_poll_t, status: c_int, events: c_in
     return;
   }
 
+  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
+  let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
   wrap.handle_socket(status, events);
 
   Box::into_raw(data);
@@ -672,8 +603,9 @@ extern "C" fn on_connect(handle: *mut sys::uv_poll_t, status: c_int, events: c_i
     return;
   }
 
+  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
+  let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
   wrap.handle_connect(status, events);
   Box::into_raw(data);
 }
@@ -682,9 +614,9 @@ extern "C" fn on_io(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
   if status == sys::uv_errno_t::UV_ECANCELED as i32 {
     return;
   }
-
+  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
+  let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
   wrap.handle_io(status, events);
   Box::into_raw(data);
 }

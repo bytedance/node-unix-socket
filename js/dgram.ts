@@ -1,24 +1,10 @@
 import { EventEmitter } from 'events';
 import {
-  dgramAddress,
-  dgramBind,
-  dgramClose,
-  dgramCreateSocket,
-  dgramGetRecvBufferSize,
-  dgramGetSendBufferSize,
-  dgramSendTo,
-  dgramSetRecvBufferSize,
-  dgramSetSendBufferSize,
-  dgramStartRecv,
+  DgramSocketWrap
 } from './addon';
 
 type FnRecv = (err: undefined | Error, buf: Buffer) => void;
 export type SendCb = (err: undefined | Error) => void;
-
-function wrapSocket(obj: DgramSocket) {
-  obj.emit = obj.emit.bind(obj);
-  dgramCreateSocket(obj);
-}
 
 /**
  * DgramSocket is used to create a SOCK_DGRAM unix domain socket.
@@ -42,11 +28,15 @@ function wrapSocket(obj: DgramSocket) {
  */
 export class DgramSocket extends EventEmitter {
   private closed: boolean = false;
+  private wrap: DgramSocketWrap;
 
   constructor() {
     super();
-    wrapSocket(this);
-    dgramStartRecv(this);
+    this.emit = this.emit.bind(this);
+    this.wrap = new DgramSocketWrap(this);
+    // TODO currently we can't get this object in rust side
+    this.wrap.init(this.wrap);
+    this.wrap.startRecv();
     this.on('_data', this.onData);
     this.on('_error', this.onError);
   }
@@ -74,7 +64,7 @@ export class DgramSocket extends EventEmitter {
    */
   bind(socketPath: string) {
     this.checkClosed();
-    dgramBind(this, socketPath);
+    this.wrap.bind(socketPath);
   }
 
   /**
@@ -93,14 +83,14 @@ export class DgramSocket extends EventEmitter {
     onWrite?: SendCb
   ) {
     this.checkClosed();
-    dgramSendTo(this, buf, offset, length, destPath, onWrite);
+    this.wrap.sendTo(buf, offset, length, destPath, onWrite);
   }
 
   /**
    * @returns the SO_RCVBUF socket receive buffer size in bytes.
    */
   getRecvBufferSize() {
-    return dgramGetRecvBufferSize(this);
+    return this.wrap.getRecvBufferSize();
   }
 
   /**
@@ -109,14 +99,14 @@ export class DgramSocket extends EventEmitter {
    * @returns
    */
   setRecvBufferSize(size: number) {
-    return dgramSetRecvBufferSize(this, size);
+    return this.wrap.setRecvBufferSize(size);
   }
 
   /**
    * @returns the SO_SNDBUF socket send buffer size in bytes.
    */
   getSendBufferSize() {
-    return dgramGetSendBufferSize(this);
+    return this.wrap.getSendBufferSize();
   }
 
   /**
@@ -125,7 +115,7 @@ export class DgramSocket extends EventEmitter {
    * @returns
    */
   setSendBufferSize(size: number) {
-    return dgramSetSendBufferSize(this, size);
+    return this.wrap.setSendBufferSize(size);
   }
 
   /**
@@ -133,7 +123,7 @@ export class DgramSocket extends EventEmitter {
    * @returns
    */
   address(): string {
-    return dgramAddress(this);
+    return this.wrap.address();
   }
 
   /**
@@ -145,6 +135,6 @@ export class DgramSocket extends EventEmitter {
       return;
     }
     this.closed = true;
-    dgramClose(this);
+    this.wrap.close();
   }
 }

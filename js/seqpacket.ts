@@ -1,25 +1,9 @@
 import { EventEmitter } from 'events';
 import {
-  seqAddress,
-  seqClose,
-  seqConnect,
-  seqCreateSocket,
-  seqListen,
-  seqSetNapiBufSize,
-  seqGetNapiBufSize,
-  seqShutdownWhenFlushed,
-  seqStartRecv,
-  seqWrite,
-  seqRef,
-  seqUnref,
+  SeqpacketSocketWrap
 } from './addon';
 
 export type NotifyCb = () => void;
-
-function wrapSocket(obj: EventEmitter, fd?: number) {
-  obj.emit = obj.emit.bind(obj);
-  seqCreateSocket(obj, fd);
-}
 
 /**
  * SeqpacketServer is used to create a SOCK_SEQPACKET server.
@@ -44,10 +28,16 @@ function wrapSocket(obj: EventEmitter, fd?: number) {
  */
 export class SeqpacketServer extends EventEmitter {
   private closed: boolean = false;
+  private wrap: SeqpacketSocketWrap;
 
   constructor() {
     super();
-    wrapSocket(this);
+
+    this.emit = this.emit.bind(this);
+    this.wrap = new SeqpacketSocketWrap(this);
+    // TODO currently we can't get this object in rust side
+    this.wrap.init(this.wrap);
+
     this.on('_connection', this.onConnection);
     this.on('_error', this.onError);
   }
@@ -74,7 +64,7 @@ export class SeqpacketServer extends EventEmitter {
    */
   address(): string {
     this.checkClosed();
-    return seqAddress(this);
+    return this.wrap.address();
   }
 
   /**
@@ -88,7 +78,7 @@ export class SeqpacketServer extends EventEmitter {
       return;
     }
     this.closed = true;
-    seqClose(this);
+    this.wrap.close();
   }
 
   /**
@@ -98,21 +88,21 @@ export class SeqpacketServer extends EventEmitter {
    */
   listen(bindpath: string, backlog: number = 511) {
     this.checkClosed();
-    seqListen(this, bindpath, backlog);
+    this.wrap.listen(bindpath, backlog);
   }
 
   /**
    * Reference the server so that it will prevent Node.js process from exiting automatically.
    */
   ref() {
-    seqRef(this);
+    this.wrap.uvRefer();
   }
 
   /**
    * Unreference the server so that it won't prevent Node.js process from exiting automatically.
    */
   unref() {
-    seqUnref(this);
+    this.wrap.uvUnrefer();
   }
 }
 
@@ -141,6 +131,7 @@ export class SeqpacketServer extends EventEmitter {
  * Emitted once the socket is fully closed.
  */
 export class SeqpacketSocket extends EventEmitter {
+  private wrap: SeqpacketSocketWrap;
   private destroyed: boolean = false;
   private connectCb?: NotifyCb;
   private shutdownCb?: NotifyCb;
@@ -149,9 +140,14 @@ export class SeqpacketSocket extends EventEmitter {
 
   constructor(fd?: number) {
     super();
-    wrapSocket(this, fd);
+
+    this.emit = this.emit.bind(this);
+    this.wrap = new SeqpacketSocketWrap(this, fd);
+    // TODO currently we can't get this object in rust side
+    this.wrap.init(this.wrap);
+
     if (fd) {
-      seqStartRecv(this);
+      this.wrap.startRecv();
     }
     this.on('_data', this.onData);
     this.on('end', this.onEnd);
@@ -192,7 +188,7 @@ export class SeqpacketSocket extends EventEmitter {
   };
 
   private onConnect = () => {
-    seqStartRecv(this);
+    this.wrap.startRecv();
     this.emit('connect');
     if (this.connectCb) {
       this.connectCb();
@@ -222,7 +218,7 @@ export class SeqpacketSocket extends EventEmitter {
   connect(serverPath: string, connectCb?: NotifyCb) {
     this.checkDestroyed();
     this.connectCb = connectCb;
-    seqConnect(this, serverPath);
+    this.wrap.connect(serverPath);
   }
 
   /**
@@ -238,7 +234,7 @@ export class SeqpacketSocket extends EventEmitter {
       length = buf.length
     }
     this.checkDestroyed();
-    seqWrite(this, buf, offset, length, cb);
+    this.wrap.write(buf, offset, length, cb);
   }
 
   /**
@@ -247,7 +243,7 @@ export class SeqpacketSocket extends EventEmitter {
    */
   end(cb?: NotifyCb) {
     this.shutdownCb = cb;
-    seqShutdownWhenFlushed(this);
+    this.wrap.shutdownWhenFlushed();
   }
 
   /**
@@ -257,7 +253,7 @@ export class SeqpacketSocket extends EventEmitter {
    * @returns
    */
   getInternalReadBufferSize(): number {
-    return seqGetNapiBufSize(this);
+    return this.wrap.getReadBufSize();
   }
 
   /**
@@ -266,21 +262,21 @@ export class SeqpacketSocket extends EventEmitter {
    * @param size
    */
   setInternalReadBufferSize(size: number) {
-    seqSetNapiBufSize(this, size);
+    this.wrap.setReadBufSize(size);
   }
 
   /**
    * Reference the socket so that it will prevent Node.js process from exiting automatically.
    */
   ref() {
-    seqRef(this);
+    this.wrap.uvRefer();
   }
 
   /**
    * Unreference the socket so that it won't prevent Node.js process from exiting automatically.
    */
   unref() {
-    seqUnref(this);
+    this.wrap.uvUnrefer();
   }
 
   /**
@@ -291,6 +287,6 @@ export class SeqpacketSocket extends EventEmitter {
       return;
     }
     this.destroyed = true;
-    seqClose(this);
+    this.wrap.close();
   }
 }

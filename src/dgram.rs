@@ -14,92 +14,6 @@ use crate::util::{
   resolve_libc_err, resolve_uv_err, set_clo_exec, set_non_block, socket_addr_to_string,
 };
 
-fn unwrap<'a>(env: &'a Env, this: &JsObject) -> Result<&'a mut DgramSocketWrap> {
-  env.unwrap(&this)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_create_socket(env: Env, ee: JsObject) -> Result<()> {
-  check_emit(&ee)?;
-  DgramSocketWrap::wrap(env, ee)?;
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_start_recv(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.start_recv(env)?;
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_close(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.close(env)?;
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_bind(env: Env, ee: JsObject, bindpath: String) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.bind(bindpath)?;
-  Ok(())
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_address(env: Env, ee: JsObject) -> Result<JsString> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.address(env)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_get_recv_buffer_size(env: Env, ee: JsObject) -> Result<JsNumber> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.get_recv_buffer_size(env)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_set_recv_buffer_size(env: Env, ee: JsObject, size: JsNumber) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.set_recv_buffer_size(size)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_get_send_buffer_size(env: Env, ee: JsObject) -> Result<JsNumber> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.get_send_buffer_size(env)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_set_send_buffer_size(env: Env, ee: JsObject, size: JsNumber) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.set_send_buffer_size(size)
-}
-
-#[allow(dead_code)]
-#[napi]
-pub fn dgram_send_to(
-  env: Env,
-  ee: JsObject,
-  buf: JsBuffer,
-  offset: JsNumber,
-  length: JsNumber,
-  path: String,
-  cb: Option<JsFunction>,
-) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.send_to(env, buf, offset, length, path, cb)
-}
-
 #[allow(dead_code)]
 fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
   let trans = i8_slice_into_u8_slice(slice);
@@ -115,6 +29,7 @@ struct MsgItem {
   cb: Option<Ref<()>>,
 }
 
+#[napi]
 pub struct DgramSocketWrap {
   fd: i32,
   env: Env,
@@ -123,8 +38,12 @@ pub struct DgramSocketWrap {
   emitter: Emitter,
 }
 
+#[napi]
 impl DgramSocketWrap {
-  fn wrap(env: Env, mut this: JsObject) -> Result<()> {
+  #[napi(constructor)]
+  pub fn new(env: Env, ee: JsObject) -> Result<Self> {
+    check_emit(&ee)?;
+
     let domain = libc::AF_UNIX;
     let ty = libc::SOCK_DGRAM;
     let protocol = 0;
@@ -137,28 +56,34 @@ impl DgramSocketWrap {
     set_non_block(fd)?;
     set_clo_exec(fd)?;
 
-    let emit_fn: JsFunction = this.get_named_property("emit")?;
+    let emit_fn: JsFunction = ee.get_named_property("emit")?;
     let handle = Box::into_raw(Box::new(unsafe {
-      mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init()
+      let mut handle = mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init();
+      handle.data = std::ptr::null_mut() as *mut _;
+      handle
     }));
-    let socket = DgramSocketWrap {
+
+    Ok(Self {
       fd,
       handle,
       msg_queue: LinkedList::new(),
       env,
       emitter: Emitter::new(env, emit_fn)?,
-    };
+    })
+  }
 
-    env.wrap(&mut this, socket)?;
-    let data = Box::into_raw(Box::new(HandleData::new(env, this)?));
+  #[napi]
+  pub fn init(&mut self, env: Env, this_obj: JsObject) -> Result<()> {
+    let data = Box::into_raw(Box::new(HandleData::new(env, this_obj)?));
     unsafe {
-      (*handle).data = data as *mut _;
+      (*self.handle).data = data as *mut _;
     }
 
     Ok(())
   }
 
-  fn start_recv(&mut self, env: Env) -> Result<()> {
+  #[napi]
+  pub fn start_recv(&mut self, env: Env) -> Result<()> {
     let uv_loop = get_loop(&env)?;
 
     unsafe {
@@ -173,6 +98,7 @@ impl DgramSocketWrap {
     Ok(())
   }
 
+  #[napi]
   pub fn bind(&self, bindpath: String) -> Result<()> {
     unsafe {
       let sockaddr = sockaddr_from_string(&bindpath)?;
@@ -186,11 +112,13 @@ impl DgramSocketWrap {
     Ok(())
   }
 
+  #[napi]
   pub fn address(&self, env: Env) -> Result<JsString> {
     let str = socket_addr_to_string(self.fd)?;
     env.create_string(&str)
   }
 
+  #[napi]
   pub fn get_recv_buffer_size(&self, env: Env) -> Result<JsNumber> {
     let mut val = 0_i32;
     let mut len = mem::size_of::<i32>() as u32;
@@ -206,6 +134,7 @@ impl DgramSocketWrap {
     env.create_int32(val)
   }
 
+  #[napi]
   pub fn set_recv_buffer_size(&self, size: JsNumber) -> Result<()> {
     let mut val = size.get_uint32()?;
     let len = mem::size_of::<i32>() as u32;
@@ -221,6 +150,7 @@ impl DgramSocketWrap {
     Ok(())
   }
 
+  #[napi]
   pub fn get_send_buffer_size(&self, env: Env) -> Result<JsNumber> {
     let mut val = 0_i32;
     let mut len = mem::size_of::<i32>() as u32;
@@ -236,6 +166,7 @@ impl DgramSocketWrap {
     env.create_int32(val)
   }
 
+  #[napi]
   pub fn set_send_buffer_size(&self, size: JsNumber) -> Result<()> {
     let mut val = size.get_uint32()?;
     let len = mem::size_of::<i32>() as u32;
@@ -317,6 +248,7 @@ impl DgramSocketWrap {
     Ok(())
   }
 
+  #[napi]
   pub fn send_to(
     &mut self,
     env: Env,
@@ -352,6 +284,7 @@ impl DgramSocketWrap {
     Ok(())
   }
 
+  #[napi]
   pub fn close(&mut self, env: Env) -> Result<()> {
     // stop watcher
     let is_closing = unsafe { sys::uv_is_closing(self.handle as *mut _) } != 0;
@@ -499,6 +432,7 @@ impl DgramSocketWrap {
 
 extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
   let handle = unsafe { Box::from_raw(handle) };
+  assert!(!handle.data.is_null(), "unexpected null handle data");
   let data = unsafe { Box::from_raw(handle.data as *mut HandleData) };
 
   let wrap: &mut DgramSocketWrap = data.inner_mut_ref().unwrap();
@@ -511,6 +445,7 @@ extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   unsafe {
     let handle = Box::from_raw(handle);
+    assert!(!handle.data.is_null(), "unexpected null handle data");
     let mut data = Box::from_raw(handle.data as *mut HandleData);
     data.unref().unwrap();
   };

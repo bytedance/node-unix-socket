@@ -1,3 +1,3 @@
-# `unix-socket-win32-x64-msvc`
+# `nix-socket-win32-x64-msvc`
 
-This is the **x86_64-pc-windows-msvc** binary for `unix-socket`
+This is the **x86_64-pc-windows-msvc** binary for `nix-socket`

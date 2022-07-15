@@ -1,3 +1,3 @@
-# `unix-socket-darwin-arm64`
+# `nix-socket-darwin-arm64`
 
-This is the **aarch64-apple-darwin** binary for `unix-socket`
+This is the **aarch64-apple-darwin** binary for `nix-socket`

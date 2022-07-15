@@ -1,3 +1,3 @@
-# `unix-socket-linux-x64-gnu`
+# `nix-socket-linux-x64-gnu`
 
-This is the **x86_64-unknown-linux-gnu** binary for `unix-socket`
+This is the **x86_64-unknown-linux-gnu** binary for `nix-socket`

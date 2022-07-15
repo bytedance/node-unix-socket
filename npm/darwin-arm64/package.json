@@ -1,5 +1,5 @@
 {
-  "name": "unix-socket-darwin-arm64",
+  "name": "nix-socket-darwin-arm64",
   "version": "0.0.0",
   "os": [
     "darwin"
@@ -7,9 +7,9 @@
   "cpu": [
     "arm64"
   ],
-  "main": "unix-socket.darwin-arm64.node",
+  "main": "nix-socket.darwin-arm64.node",
   "files": [
-    "unix-socket.darwin-arm64.node"
+    "nix-socket.darwin-arm64.node"
   ],
   "license": "MIT",
   "engines": {

@@ -1,5 +1,5 @@
 {
-  "name": "unix-socket",
+  "name": "nix-socket",
   "version": "0.0.0",
   "main": "js/index.js",
   "types": "js/index.d.ts",
@@ -16,7 +16,7 @@
     "version": "napi version"
   },
   "napi": {
-    "name": "unix-socket",
+    "name": "nix-socket",
     "triples": {
       "additional": [
         "aarch64-apple-darwin"

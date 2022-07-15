@@ -50,7 +50,7 @@ module.exports = {
 if (module === require.main) {
   setInterval(() => {
     sendSomeBufs().catch((err) => {
-      console.error(err);
+      console.error('receive error', err);
     });
     if (global.gc) {
       global.gc()

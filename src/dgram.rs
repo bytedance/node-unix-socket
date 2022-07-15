@@ -8,7 +8,7 @@ use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, R
 use nix::{self, errno::errno};
 use uv_sys::sys::{self, uv_poll_event};
 
-use crate::socket::{close, get_loop, sockaddr_from_string};
+use crate::socket::{close, get_loop, sockaddr_from_string, Emitter};
 use crate::util::{
   addr_to_string, buf_into_vec, check_emit, error, get_err, i8_slice_into_u8_slice,
   resolve_libc_err, resolve_uv_err, set_clo_exec, set_non_block, socket_addr_to_string,
@@ -133,7 +133,7 @@ pub struct DgramSocketWrap {
   env: Env,
   handle: *mut sys::uv_poll_t,
   msg_queue: LinkedList<MsgItem>,
-  emit_ref: Ref<()>,
+  emitter: Emitter,
 }
 
 impl DgramSocketWrap {
@@ -151,7 +151,6 @@ impl DgramSocketWrap {
     set_clo_exec(fd)?;
 
     let emit_fn: JsFunction = this.get_named_property("emit")?;
-    let emit_ref = env.create_reference(emit_fn)?;
     let handle = Box::into_raw(Box::new(unsafe {
       mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init()
     }));
@@ -160,7 +159,7 @@ impl DgramSocketWrap {
       handle,
       msg_queue: LinkedList::new(),
       env,
-      emit_ref,
+      emitter: Emitter::new(env, emit_fn)?,
     };
 
     env.wrap(&mut this, socket)?;
@@ -173,19 +172,6 @@ impl DgramSocketWrap {
     Ok(())
   }
 
-  // TODO DRY
-  fn emit(&mut self, args: &[JsUnknown]) -> Result<()> {
-    let env = self.env;
-
-    env.run_in_scope(|| {
-      let emit: JsFunction = env.get_reference_value(&self.emit_ref)?;
-      emit.call(None, args).unwrap();
-      Ok(())
-    })?;
-
-    Ok(())
-  }
-
   fn emit_error(&mut self, error: napi::Error) {
     let env = self.env;
 
@@ -194,7 +180,7 @@ impl DgramSocketWrap {
         let event = env.create_string("_error").unwrap();
         let error = self.env.create_error(error).unwrap();
         self
-          .emit(&[event.into_unknown(), error.into_unknown()])
+          .emitter.emit(&[event.into_unknown(), error.into_unknown()])
           .unwrap();
         Ok(())
       })
@@ -407,8 +393,6 @@ impl DgramSocketWrap {
     };
 
     // release Ref<JsFunction> in msg_queue
-    self.emit_ref.unref(env)?;
-
     loop {
       let msg = self.msg_queue.pop_front();
       if msg.is_none() {
@@ -428,7 +412,8 @@ impl DgramSocketWrap {
     close(self.fd)?;
 
     let event = env.create_string("close")?;
-    self.emit(&[event.into_unknown()])?;
+    self.emitter.emit(&[event.into_unknown()])?;
+    self.emitter.unref()?;
 
     Ok(())
   }
@@ -492,7 +477,7 @@ pub fn on_readable(s: &mut DgramSocketWrap) -> Result<()> {
       args.push(js_sockname.into_unknown());
     }
 
-    let _ = s.emit(&args).map_err(|e| {
+    let _ = s.emitter.emit(&args).map_err(|e| {
       let _ = env.throw_error(&e.reason, None);
     });
   }

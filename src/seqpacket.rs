@@ -2,10 +2,10 @@ use std::collections::LinkedList;
 use std::mem;
 use std::os::raw::c_int;
 
-use crate::socket::{self, get_loop, sockaddr_from_string};
+use crate::socket::{self, get_loop, sockaddr_from_string, Emitter};
 use crate::util::{
-  addr_to_string, buf_into_vec, error, get_err, resolve_libc_err, resolve_uv_err, set_clo_exec,
-  set_non_block, socket_addr_to_string, uv_err_msg, check_emit,
+  addr_to_string, buf_into_vec, check_emit, error, get_err, resolve_libc_err, resolve_uv_err,
+  set_clo_exec, set_non_block, socket_addr_to_string, uv_err_msg,
 };
 use libc::{sockaddr, sockaddr_un, EAGAIN, EINTR, EINVAL, ENOBUFS, EWOULDBLOCK};
 use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
@@ -42,7 +42,7 @@ struct SeqpacketSocketWrap {
   read_buf_size: usize,
   state: State,
   poll_events: i32,
-  emit_ref: Ref<()>,
+  emitter: Emitter,
 }
 
 fn unwrap<'a>(env: &'a Env, this: &JsObject) -> Result<&'a mut SeqpacketSocketWrap> {
@@ -146,8 +146,6 @@ impl SeqpacketSocketWrap {
     set_clo_exec(fd)?;
 
     let emit_fn = this.get_named_property::<JsFunction>("emit")?;
-    let emit_ref = env.create_reference(emit_fn)?;
-
     let handle = Box::into_raw(Box::new(unsafe {
       mem::MaybeUninit::<sys::uv_poll_t>::zeroed().assume_init()
     }));
@@ -157,7 +155,7 @@ impl SeqpacketSocketWrap {
     let wrap = Self {
       // this,
       fd,
-      emit_ref,
+      emitter: Emitter::new(env, emit_fn)?,
       env,
       handle,
       msg_queue: LinkedList::new(),
@@ -203,13 +201,10 @@ impl SeqpacketSocketWrap {
     }
 
     // release js objects
-    self.emit_ref.unref(env)?;
-
     socket::close(self.fd)?;
-
     self.state = State::Closed;
-
-    self.emit_event("close")?;
+    self.emitter.emit_event("close")?;
+    self.emitter.unref()?;
 
     Ok(())
   }
@@ -217,7 +212,7 @@ impl SeqpacketSocketWrap {
   fn shutdown_write(&mut self) -> Result<()> {
     resolve_libc_err(unsafe { libc::shutdown(self.fd, libc::SHUT_WR) })?;
     self.state = State::ShutDown;
-    self.emit_event("_shutdown")?;
+    self.emitter.emit_event("_shutdown")?;
     Ok(())
   }
 
@@ -230,35 +225,12 @@ impl SeqpacketSocketWrap {
         let event = env.create_string("_error").unwrap();
         let error = self.env.create_error(error).unwrap();
         self
+          .emitter
           .emit(&[event.into_unknown(), error.into_unknown()])
           .unwrap();
         Ok(())
       })
       .unwrap();
-  }
-
-  fn emit_event(&mut self, event: &str) -> Result<()> {
-    let env = self.env;
-    env.run_in_scope(|| {
-      let js_event = env.create_string(event)?;
-      let mut args: Vec<JsUnknown> = vec![];
-      args.push(js_event.into_unknown());
-
-      self.emit(&args)
-    })?;
-    Ok(())
-  }
-
-  fn emit(&mut self, args: &[JsUnknown]) -> Result<()> {
-    let env = self.env;
-
-    env.run_in_scope(|| {
-      let emit: JsFunction = env.get_reference_value(&self.emit_ref)?;
-      emit.call(None, args)?;
-      Ok(())
-    })?;
-
-    Ok(())
   }
 
   fn bind(&self, bindpath: &str) -> Result<()> {
@@ -280,7 +252,7 @@ impl SeqpacketSocketWrap {
     }
 
     // FIXME: error ignored
-    let _ = self.emit_event("_connect");
+    let _ = self.emitter.emit_event("_connect");
   }
 
   fn handle_socket(&mut self, status: i32, _events: i32) {
@@ -314,7 +286,7 @@ impl SeqpacketSocketWrap {
       args.push(js_fd.into_unknown());
       let js_addr = env.create_string(&addr)?;
       args.push(js_addr.into_unknown());
-      self.emit(&args)?;
+      self.emitter.emit(&args)?;
       Ok(())
     }) {
       Ok(_) => {}
@@ -475,7 +447,7 @@ impl SeqpacketSocketWrap {
           args.push(js_event.into_unknown());
           let js_buf = env.create_buffer_with_data(buf[0..size].to_vec())?;
           args.push(js_buf.into_unknown());
-          self.emit(&args)?;
+          self.emitter.emit(&args)?;
           Ok(())
         })?;
 
@@ -629,7 +601,7 @@ impl SeqpacketSocketWrap {
         Some(cb) => {
           let cb_ref = env.create_reference(cb)?;
           Some(cb_ref)
-        },
+        }
         None => None,
       },
     });

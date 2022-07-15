@@ -12,60 +12,6 @@
 
 [API Documents](./docs/modules.md)
 
-## `SO_REUSEPORT` enabled TCP net.Server
-
-The [cluster](https://nodejs.org/dist/latest-v18.x/docs/api/cluster.html) module share server ports by accepting new connections in the primary process and distributing them to worker processes.
-
-With `SO_REUSEPORT`, sockets will be distributed by kernel instead, and which should be more performant especially for scenario of having a lot of short-lived connections.
-
-For example, the arrow in the image below shows cpu usage of a PM2 primary process which we found in our environment.
-
-![cpu_usage](./resource/cpu_usage.png)
-
-Note that `SO_REUSEPORT` might behave much differently across operating systems. See this [post](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more information.
-
-### Example
-
-```js
-const { createReuseportFd } = require('node-unix-socket');
-const { Server, Socket } = require('net');
-
-const port = 8080;
-const host = '0.0.0.0';
-
-// create multple servers listening to a same host, port.
-for (let i = 0; i < 2; i += 1) {
-  const fd = createReuseportFd(port, host);
-  const server = new Server((socket) => {
-    socket.on('data', (buf) => {
-      console.log(`server ${i} received:`, buf);
-      // echo
-      socket.write(buf);
-    });
-  });
-
-  server.listen(
-    {
-      fd,
-    },
-    () => {
-      console.log(`server ${i} is listening on ${port}`);
-    }
-  );
-}
-
-setInterval(() => {
-  const client = new Socket();
-  client.on('data', (buf) => {
-    console.log('client received:', buf);
-    client.destroy();
-  });
-  client.connect(port, host, () => {
-    client.write(Buffer.from('hello'));
-  });
-}, 1000);
-```
-
 ## Seqpacket Sockets
 
 `SOCK_SEQPACKET` sockets are like `SOCK_DGRAM` sockets and they will keep message boundaries.
@@ -142,6 +88,60 @@ socket1.on('data', (data) => {
 setInterval(() => {
   const buf = Buffer.from('hello');
   socket1.sendTo(buf, 0, buf.length, path2);
+}, 1000);
+```
+
+## `SO_REUSEPORT` enabled TCP net.Server
+
+The [cluster](https://nodejs.org/dist/latest-v18.x/docs/api/cluster.html) module share server ports by accepting new connections in the primary process and distributing them to worker processes.
+
+With `SO_REUSEPORT`, sockets will be distributed by kernel instead, and which should be more performant especially for scenario of having a lot of short-lived connections.
+
+For example, the arrow in the image below shows cpu usage of a PM2 primary process which we found in our environment.
+
+![cpu_usage](./resource/cpu_usage.png)
+
+Note that `SO_REUSEPORT` might behave much differently across operating systems. See this [post](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more information.
+
+### Example
+
+```js
+const { createReuseportFd } = require('node-unix-socket');
+const { Server, Socket } = require('net');
+
+const port = 8080;
+const host = '0.0.0.0';
+
+// create multple servers listening to a same host, port.
+for (let i = 0; i < 2; i += 1) {
+  const fd = createReuseportFd(port, host);
+  const server = new Server((socket) => {
+    socket.on('data', (buf) => {
+      console.log(`server ${i} received:`, buf);
+      // echo
+      socket.write(buf);
+    });
+  });
+
+  server.listen(
+    {
+      fd,
+    },
+    () => {
+      console.log(`server ${i} is listening on ${port}`);
+    }
+  );
+}
+
+setInterval(() => {
+  const client = new Socket();
+  client.on('data', (buf) => {
+    console.log('client received:', buf);
+    client.destroy();
+  });
+  client.connect(port, host, () => {
+    client.write(Buffer.from('hello'));
+  });
 }, 1000);
 ```
 

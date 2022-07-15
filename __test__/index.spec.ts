@@ -264,7 +264,7 @@ describe('DgramSocket', () => {
     server.close()
   })
 
-  it('should allow to send a long msg (although th msg might get dropped)', async () => {
+  it('should allow to send a long msg (although the msg might get dropped)', async () => {
     const { p, resolve } = createDefer<Buffer>()
 
     const client = new DgramSocket(emptyFn)
@@ -282,4 +282,29 @@ describe('DgramSocket', () => {
     client.close()
     server.close()
   })
+
+  it('should return address', () => {
+    const server = new DgramSocket(emptyFn)
+    expect(server.address()).toBe('')
+
+    server.bind(kServerPath)
+    expect(server.address()).toBe(kServerPath);
+
+    server.close();
+    expect(() => server.address()).toThrow()
+  })
+
+  it('shoud set/send recv/send buffer size', () => {
+    const server = new DgramSocket(emptyFn);
+
+    const size = 511
+
+    server.setRecvBufferSize(size)
+    expect(server.getRecvBufferSize()).toBe(size)
+
+    server.setSendBufferSize(size)
+    expect(server.getSendBufferSize()).toBe(size)
+
+    server.close()
+  });
 })

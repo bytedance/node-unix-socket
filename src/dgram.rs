@@ -1,41 +1,21 @@
 use std::mem;
-use std::{
-  collections::LinkedList, ffi::CString, intrinsics::transmute, str::FromStr,
-};
+use std::{collections::LinkedList, ffi::CString, intrinsics::transmute, str::FromStr};
 
 use libc::{
-  self, c_void, iovec, msghdr, sockaddr, sockaddr_un,
-  EAGAIN, EINPROGRESS, EINTR, ENOBUFS, EWOULDBLOCK,
+  self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINPROGRESS, EINTR, ENOBUFS,
+  EWOULDBLOCK,
 };
-use napi::{Env, JsBuffer, JsFunction, JsObject, JsUnknown, Ref, Result};
-use nix::{
-  self,
-  errno::errno,
-  fcntl::{fcntl, FcntlArg, OFlag},
-};
+use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
+use nix::{self, errno::errno};
 use uv_sys::sys::{self, uv_poll_event};
 
 use crate::util::{
-  error, get_err, nix_err, resolve_libc_err, resolve_uv_err,
-  str_from_u8_nul_utf8_unchecked,
+  addr_to_string, error, get_err, i8_slice_into_u8_slice, resolve_libc_err, resolve_uv_err,
+  set_clo_exec, set_non_block, socket_addr_to_string,
 };
-
-fn set_non_block(fd: i32) -> Result<()> {
-  fcntl(fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).map_err(nix_err)?;
-  Ok(())
-}
-
-fn set_clo_exec(fd: i32) -> Result<()> {
-  fcntl(fd, FcntlArg::F_SETFL(OFlag::O_CLOEXEC)).map_err(nix_err)?;
-  Ok(())
-}
 
 fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
   Ok(env.get_uv_event_loop()? as *mut _ as *mut sys::uv_loop_t)
-}
-
-fn i8_slice_into_u8_slice<'a>(slice: &'a [i8]) -> &'a [u8] {
-  unsafe { &*(slice as *const [i8] as *const [u8]) }
 }
 
 #[allow(dead_code)]
@@ -93,18 +73,16 @@ pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
     let iov = unsafe { *msg.msg_iov };
     // NOTE: Vec::from_raw_parts will consum the ptr and respond to reclaim it.
     // TODO not safe
-    let iov_base = unsafe { Vec::from_raw_parts(iov.iov_base as *mut u8, iov.iov_len, iov.iov_len) };
+    let iov_base =
+      unsafe { Vec::from_raw_parts(iov.iov_base as *mut u8, iov.iov_len, iov.iov_len) };
     let len = ret as usize;
     let slice = iov_base[0..len].to_vec();
 
     let name = unsafe { *(msg.msg_name as *mut sockaddr_un) };
 
     let js_sockname = {
-      let len = name.sun_len as usize;
-      let sockname = &name.sun_path[0..std::cmp::min(len, name.sun_path.len())];
-      let sockname = i8_slice_into_u8_slice(sockname);
-      let sockname = unsafe { str_from_u8_nul_utf8_unchecked(sockname) };
-      env.create_string(&sockname[0..sockname.len() - 1])?
+      let name = addr_to_string(&name);
+      env.create_string(&name)?
     };
 
     let buf = env.create_buffer_with_data(slice)?;
@@ -133,35 +111,47 @@ unsafe fn get_socket(data: *mut c_void) -> Box<DgramSocketWrap> {
 
 extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
   let handle = unsafe { Box::from_raw(handle) };
-  assert!(!handle.data.is_null(), "'on_event' receive null_ptr handle data");
+  assert!(
+    !handle.data.is_null(),
+    "'on_event' receive null_ptr handle data"
+  );
+
   let mut socket = unsafe { get_socket(handle.data) };
   let env = socket.env;
 
   /*
    * FIXME(oyyd): env.run_in_scope() below might produce an EXC_BAD_ACCESS error.
    */
-  let socket = env.run_in_scope(move || {
-    if status != 0 {
-      let _ = env.throw_error(&format!("on_event receive error status: {}", status), None);
-      return Ok(socket)
-    }
+  let socket = env
+    .run_in_scope(move || {
+      if status != 0 {
+        let _ = env.throw_error(&format!("on_event receive error status: {}", status), None);
+        return Ok(socket);
+      }
 
-    if events & uv_poll_event::UV_READABLE as i32 != 0 {
-      on_readable(&socket).map_err(|e| {
-        let _ = env.throw_error(&e.reason, None);
-        e
-      }).or::<napi::Error>(Ok(())).unwrap();
-    }
+      if events & uv_poll_event::UV_READABLE as i32 != 0 {
+        on_readable(&socket)
+          .map_err(|e| {
+            let _ = env.throw_error(&e.reason, None);
+            e
+          })
+          .or::<napi::Error>(Ok(()))
+          .unwrap();
+      }
 
-    if events & uv_poll_event::UV_WRITABLE as i32 != 0 {
-      on_writable(&mut socket).map_err(|e| {
-        let _ = env.throw_error(&e.reason, None);
-        e
-      }).or::<napi::Error>(Ok(())).unwrap();
-    }
+      if events & uv_poll_event::UV_WRITABLE as i32 != 0 {
+        on_writable(&mut socket)
+          .map_err(|e| {
+            let _ = env.throw_error(&e.reason, None);
+            e
+          })
+          .or::<napi::Error>(Ok(()))
+          .unwrap();
+      }
 
-    Ok(socket)
-  }).unwrap();
+      Ok(socket)
+    })
+    .unwrap();
 
   Box::into_raw(socket);
   Box::into_raw(handle);
@@ -205,7 +195,7 @@ struct MsgItem {
 #[napi]
 pub struct DgramSocketWrap {
   fd: i32,
-  // TODO env might be invalid
+  // TODO test in worker_threads
   env: Env,
   // handle should be freed on on_close
   handle: *mut sys::uv_poll_t,
@@ -224,8 +214,7 @@ impl DgramSocketWrap {
     let fd = unsafe { libc::socket(domain, ty, protocol) };
 
     if fd == -1 {
-      let errno = -nix::errno::errno();
-      return Err(error(format!("failed to create socket, errno: {}", errno)));
+      return Err(get_err());
     }
 
     set_non_block(fd)?;
@@ -292,6 +281,76 @@ impl DgramSocketWrap {
       ))?;
     };
 
+    Ok(())
+  }
+
+  #[napi]
+  pub fn address(&self, env: Env) -> Result<JsString> {
+    let str = socket_addr_to_string(self.fd)?;
+    env.create_string(&str)
+  }
+
+  #[napi]
+  pub fn get_recv_buffer_size(&self, env: Env) -> Result<JsNumber> {
+    let mut val = 0_i32;
+    let mut len = mem::size_of::<i32>() as u32;
+    resolve_libc_err(unsafe {
+      libc::getsockopt(
+        self.fd,
+        libc::SOL_SOCKET,
+        libc::SO_RCVBUF,
+        &mut val as *mut _ as *mut c_void,
+        &mut len as *mut _,
+      )
+    })?;
+    env.create_int32(val)
+  }
+
+  #[napi]
+  pub fn set_recv_buffer_size(&self, size: JsNumber) -> Result<()> {
+    let mut val = size.get_uint32()?;
+    let len = mem::size_of::<i32>() as u32;
+    resolve_libc_err(unsafe {
+      libc::setsockopt(
+        self.fd,
+        libc::SOL_SOCKET,
+        libc::SO_RCVBUF,
+        &mut val as *mut _ as *mut c_void,
+        len,
+      )
+    })?;
+    Ok(())
+  }
+
+  #[napi]
+  pub fn get_send_buffer_size(&self, env: Env) -> Result<JsNumber> {
+    let mut val = 0_i32;
+    let mut len = mem::size_of::<i32>() as u32;
+    resolve_libc_err(unsafe {
+      libc::getsockopt(
+        self.fd,
+        libc::SOL_SOCKET,
+        libc::SO_SNDBUF,
+        &mut val as *mut _ as *mut c_void,
+        &mut len as *mut _,
+      )
+    })?;
+    env.create_int32(val)
+  }
+
+  #[napi]
+  pub fn set_send_buffer_size(&self, size: JsNumber) -> Result<()> {
+    let mut val = size.get_uint32()?;
+    let len = mem::size_of::<i32>() as u32;
+    resolve_libc_err(unsafe {
+      libc::setsockopt(
+        self.fd,
+        libc::SOL_SOCKET,
+        libc::SO_SNDBUF,
+        &mut val as *mut _ as *mut c_void,
+        len
+      )
+    })?;
     Ok(())
   }
 

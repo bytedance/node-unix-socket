@@ -31,6 +31,26 @@ export class DgramSocket {
     this.wrap.sendTo(buf, offset, length, destPath, onWrite);
   }
 
+  getRecvBufferSize() {
+    return this.wrap.getRecvBufferSize()
+  }
+
+  setRecvBufferSize(size: number) {
+    return this.wrap.setRecvBufferSize(size)
+  }
+
+  getSendBufferSize() {
+    return this.wrap.getSendBufferSize()
+  }
+
+  setSendBufferSize(size: number) {
+    return this.wrap.setSendBufferSize(size)
+  }
+
+  address(): string {
+    return this.wrap.address();
+  }
+
   close() {
     if (this.closed) {
       return

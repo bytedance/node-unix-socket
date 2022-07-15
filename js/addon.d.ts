@@ -5,6 +5,8 @@
 
 export class SeqpacketSocketWrap {
   constructor()
+  write(buf: Buffer, cb: (...args: any[]) => any): void
+  close(): void
 }
 export class DgramSocketWrap {
   constructor(recvCb: (...args: any[]) => any)
@@ -18,6 +20,11 @@ export class DgramSocketWrap {
   */
   refThis(thisObj: object): void
   bind(bindpath: string): void
+  address(): string
+  getRecvBufferSize(): number
+  setRecvBufferSize(size: number): void
+  getSendBufferSize(): number
+  setSendBufferSize(size: number): void
   /**
   * buf, offset, length, path
   */

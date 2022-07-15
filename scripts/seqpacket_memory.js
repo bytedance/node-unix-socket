@@ -1,6 +1,6 @@
 const { SeqpacketServer, SeqpacketSocket } = require('../js/index');
 const path = require('path');
-const fs = require('fs')
+const fs = require('fs');
 
 const kSockets = 4;
 const kDataSize = 20 * 1024;
@@ -20,41 +20,41 @@ try {
 const server = new SeqpacketServer();
 server.listen(kServerPath);
 
-server.on('connection', socket => {
-  socket.on('data', buf => {})
+server.on('connection', (socket) => {
+  socket.on('data', (buf) => {});
 
   socket.on('end', () => {
     socket.destroy();
-  })
-})
+  });
+});
 
 async function test() {
   for (let i = 0; i < kSockets; i += 1) {
-    const socket = new SeqpacketSocket()
+    const socket = new SeqpacketSocket();
     socket.connect(kServerPath, async () => {
       const pList = [];
       for (let j = 0; j < kTimes; j += 1) {
         const buf = Buffer.allocUnsafe(kDataSize);
         const p = new Promise((resolve, reject) => {
           socket.write(buf, 0, buf.length, () => {
-            resolve()
+            resolve();
           });
-        })
-        pList.push(p)
+        });
+        pList.push(p);
       }
       await Promise.all(pList);
       socket.end(() => {
         socket.destroy();
       });
-    })
+    });
   }
 }
 
 async function main() {
   setInterval(() => {
-    test()
+    test();
     if (global.gc) {
-      global.gc()
+      global.gc();
     }
     console.log(process.memoryUsage());
   }, 500);

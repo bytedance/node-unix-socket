@@ -53,7 +53,7 @@ if (module === require.main) {
       console.error('receive error', err);
     });
     if (global.gc) {
-      global.gc()
+      global.gc();
     }
     console.log(process.memoryUsage());
   }, 500);

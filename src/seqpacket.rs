@@ -64,6 +64,14 @@ pub fn seq_set_napi_buf_size(env: Env, ee: JsObject, size: JsNumber) -> Result<(
 
 #[allow(dead_code)]
 #[napi]
+pub fn seq_get_napi_buf_size(env: Env, ee: JsObject) -> Result<JsNumber> {
+  let wrap = unwrap(&env, &ee)?;
+  let js_size = env.create_uint32(wrap.read_buf_size as u32)?;
+  Ok(js_size)
+}
+
+#[allow(dead_code)]
+#[napi]
 pub fn seq_start_recv(env: Env, ee: JsObject) -> Result<()> {
   let wrap = unwrap(&env, &ee)?;
   wrap.start_recv()?;
@@ -121,9 +129,7 @@ pub fn seq_shutdown_when_flushed(env: Env, ee: JsObject) -> Result<()> {
 
 impl SeqpacketSocketWrap {
   fn wrap_obj(env: Env, mut this: JsObject, fd: Option<JsNumber>) -> Result<()> {
-    // TODO
     let ty = libc::SOCK_SEQPACKET;
-    // let ty = libc::SOCK_STREAM;
     let domain = libc::AF_UNIX;
     let protocol = 0;
     let fd: i32 = match fd {
@@ -533,7 +539,7 @@ impl SeqpacketSocketWrap {
   fn connect(&mut self, server_path: JsString) -> Result<()> {
     let server_path = server_path.into_utf8()?;
     let path = server_path.as_str()?;
-    let (mut sockaddr, addr_len) = unsafe { sockaddr_from_string(path)? };
+    let (mut sockaddr, addr_len) = sockaddr_from_string(path)?;
 
     let mut ret: i32;
 

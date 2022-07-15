@@ -5,6 +5,7 @@
 
 export function seqCreateSocket(ee: object, fd?: number | undefined | null): void
 export function seqSetNapiBufSize(ee: object, size: number): void
+export function seqGetNapiBufSize(ee: object): number
 export function seqStartRecv(ee: object): void
 export function seqAddress(ee: object): string
 export function seqListen(ee: object, bindpath: string, backlog: number): void

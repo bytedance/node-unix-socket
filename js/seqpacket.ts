@@ -6,6 +6,7 @@ import {
   seqCreateSocket,
   seqListen,
   seqSetNapiBufSize,
+  seqGetNapiBufSize,
   seqShutdownWhenFlushed,
   seqStartRecv,
   seqWrite,
@@ -28,7 +29,7 @@ export class SeqpacketServer extends EventEmitter {
     super();
     wrapSocket(this);
     this.on('_connection', this.onConnection);
-    this.on('error', this.onError);
+    this.on('_error', this.onError);
   }
 
   private checkClosed() {
@@ -124,11 +125,11 @@ export class SeqpacketSocket extends EventEmitter {
   private onConnect = () => {
     process.nextTick(() => {
       seqStartRecv(this);
+      this.emit('connect');
       if (this.connectCb) {
         this.connectCb()
         this.connectCb = undefined;
       }
-      this.emit('connect');
     })
   }
 
@@ -150,6 +151,14 @@ export class SeqpacketSocket extends EventEmitter {
   end(cb?: NotifyCb) {
     this.endCb = cb;
     seqShutdownWhenFlushed(this);
+  }
+
+  setInternalReadBufferSize(size: number) {
+    seqSetNapiBufSize(this, size)
+  }
+
+  getInternalReadBufferSize(): number {
+    return seqGetNapiBufSize(this)
   }
 
   destroy() {

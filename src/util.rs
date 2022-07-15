@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::intrinsics::transmute;
 use std::mem;
 
-use libc::{sockaddr, sockaddr_un};
+use libc::{sockaddr, sockaddr_un, c_char};
 use napi::{self, Error, JsBuffer, Result, JsFunction, JsObject};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
@@ -13,8 +13,9 @@ pub(crate) fn i8_slice_into_u8_slice<'a>(slice: &'a [i8]) -> &'a [u8] {
 }
 
 pub(crate) fn addr_to_string(addr: &sockaddr_un) -> String {
-  // let sockname = &addr.sun_path[0..std::cmp::min(addr_len as usize, arr_size as usize)];
-  let sockname = i8_slice_into_u8_slice(&addr.sun_path);
+  // sockaddr_un.sun_path/c_char has varied types in different types so that we transmute() it
+  let path_ref: &[i8] = unsafe { transmute(&addr.sun_path as &[c_char]) };
+  let sockname = i8_slice_into_u8_slice(path_ref);
   let sockname = unsafe { str_from_u8_nul_utf8_unchecked(sockname) };
 
   sockname.to_string()

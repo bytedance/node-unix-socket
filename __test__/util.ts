@@ -1,4 +1,7 @@
 import * as path from 'path'
+import * as os from 'os'
+
+export const kIsDarwin = os.platform() === 'darwin'
 
 export const kTmp = path.resolve(__dirname, './.tmp')
 

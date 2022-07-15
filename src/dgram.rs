@@ -343,7 +343,7 @@ impl DgramSocketWrap {
     let end = end;
     let msg = buf_into_vec(buf, offset, end)?;
 
-    let (addr, _) = unsafe { sockaddr_from_string(&path)? };
+    let (addr, _) = sockaddr_from_string(&path)?;
     let cb = match cb {
       None => None,
       Some(cb) => Some(env.create_reference(cb)?),

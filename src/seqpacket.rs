@@ -2,7 +2,7 @@ use std::collections::LinkedList;
 use std::mem;
 use std::os::raw::c_int;
 
-use crate::socket::{self, get_loop, sockaddr_from_string, Emitter};
+use crate::socket::{self, get_loop, sockaddr_from_string, Emitter, HandleData};
 use crate::util::{
   addr_to_string, buf_into_vec, check_emit, error, get_err, resolve_libc_err, resolve_uv_err,
   set_clo_exec, set_non_block, socket_addr_to_string, uv_err_msg,
@@ -21,11 +21,6 @@ enum State {
   ShutDown = 3,
   // Stopped = 4,
   Closed = 5,
-}
-
-struct HandleData {
-  env: Env,
-  this_ref: Ref<()>,
 }
 
 struct MsgItem {
@@ -165,8 +160,7 @@ impl SeqpacketSocketWrap {
     };
     env.wrap(&mut this, wrap)?;
 
-    let this_ref = env.create_reference(this)?;
-    let handle_data = Box::into_raw(Box::new(HandleData { env, this_ref }));
+    let handle_data = Box::into_raw(Box::new(HandleData::new(env, this)?));
 
     unsafe { (*handle).data = handle_data as *mut _ };
 
@@ -204,7 +198,6 @@ impl SeqpacketSocketWrap {
     socket::close(self.fd)?;
     self.state = State::Closed;
     self.emitter.emit_event("close")?;
-    self.emitter.unref()?;
 
     Ok(())
   }
@@ -624,9 +617,7 @@ impl SeqpacketSocketWrap {
 
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   unsafe {
-    let mut data = Box::from_raw((*handle).data as *mut HandleData);
-    let env = data.env;
-    let _ = data.this_ref.unref(env);
+    Box::from_raw((*handle).data as *mut HandleData);
     Box::from_raw(handle);
   };
 }
@@ -638,18 +629,10 @@ extern "C" fn on_socket(handle: *mut sys::uv_poll_t, status: c_int, events: c_in
   }
 
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let env = data.env;
-
   // TODO unwrap
-  env
-    .run_in_scope(|| {
-      let this: JsObject = env.get_reference_value(&data.this_ref)?;
-      let wrap = unwrap(&env, &this)?;
+  let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
+  wrap.handle_socket(status, events);
 
-      wrap.handle_socket(status, events);
-      Ok(())
-    })
-    .unwrap();
   Box::into_raw(data);
 }
 
@@ -659,17 +642,9 @@ extern "C" fn on_connect(handle: *mut sys::uv_poll_t, status: c_int, events: c_i
   }
 
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let env = data.env;
   // TODO unwrap
-  env
-    .run_in_scope(|| {
-      let this: JsObject = env.get_reference_value(&data.this_ref)?;
-      let wrap = unwrap(&env, &this)?;
-
-      wrap.handle_connect(status, events);
-      Ok(())
-    })
-    .unwrap();
+  let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
+  wrap.handle_connect(status, events);
   Box::into_raw(data);
 }
 
@@ -679,16 +654,8 @@ extern "C" fn on_io(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
   }
 
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let env = data.env;
   // TODO unwrap
-  env
-    .run_in_scope(|| {
-      let this: JsObject = env.get_reference_value(&data.this_ref)?;
-      let wrap = unwrap(&env, &this)?;
-
-      wrap.handle_io(status, events);
-      Ok(())
-    })
-    .unwrap();
+  let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
+  wrap.handle_io(status, events);
   Box::into_raw(data);
 }

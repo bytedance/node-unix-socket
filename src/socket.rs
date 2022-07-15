@@ -1,8 +1,8 @@
 use std::mem;
 use std::{str::FromStr};
 
-use libc::{sockaddr_un};
-use napi::{Result, Env, Ref, JsFunction, JsUnknown};
+use libc::{sockaddr_un, c_void};
+use napi::{Result, Env, Ref, JsFunction, JsUnknown, JsObject};
 use uv_sys::sys;
 use crate::util::{get_err, error};
 
@@ -49,6 +49,12 @@ pub(crate) struct Emitter {
   emit_ref: Option<Ref<()>>,
 }
 
+impl Drop for Emitter {
+  fn drop(&mut self) {
+    self.unref().unwrap();
+  }
+}
+
 impl Emitter {
   pub fn new(env: Env, emit: JsFunction) -> Result<Self> {
     let emit_ref = env.create_reference(emit)?;
@@ -59,7 +65,7 @@ impl Emitter {
     })
   }
 
-  pub fn unref(&mut self) -> Result<()> {
+  fn unref(&mut self) -> Result<()> {
     let mut emit_ref = self.emit_ref.take();
 
     match emit_ref.as_mut() {
@@ -105,5 +111,39 @@ impl Emitter {
       self.emit(&args)
     })?;
     Ok(())
+  }
+}
+
+
+pub(crate) struct HandleData {
+  env: Env,
+  this_ref: Ref<()>,
+}
+
+impl Drop for HandleData {
+  fn drop(&mut self) {
+    let env = self.env;
+    self.this_ref.unref(env).unwrap();
+  }
+}
+
+impl HandleData {
+  pub fn new(env: Env, this: JsObject) -> Result<Self> {
+    let this_ref = env.create_reference(this)?;
+    Ok(HandleData { env, this_ref })
+  }
+
+  pub fn clone_env(&self) -> Env {
+    self.env
+  }
+
+  pub fn inner_mut_ref<'a, T: 'static>(&'a self) -> Result<&'a mut T> {
+    let env = self.env;
+    let native = env.run_in_scope(|| {
+      let obj: JsObject = self.env.get_reference_value(&self.this_ref)?;
+      let native: &mut T = self.env.unwrap(&obj)?;
+      Ok(native)
+    })?;
+    Ok(native)
   }
 }

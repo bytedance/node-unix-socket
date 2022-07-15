@@ -1,5 +1,5 @@
 use std::mem;
-use std::{collections::LinkedList, intrinsics::transmute};
+use std::{collections::LinkedList};
 
 use libc::{
   self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINTR, ENOBUFS, EWOULDBLOCK,
@@ -8,7 +8,7 @@ use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, R
 use nix::{self, errno::errno};
 use uv_sys::sys::{self, uv_poll_event};
 
-use crate::socket::{close, get_loop, sockaddr_from_string, Emitter};
+use crate::socket::{close, get_loop, sockaddr_from_string, Emitter, HandleData};
 use crate::util::{
   addr_to_string, buf_into_vec, check_emit, error, get_err, i8_slice_into_u8_slice,
   resolve_libc_err, resolve_uv_err, set_clo_exec, set_non_block, socket_addr_to_string,
@@ -116,11 +116,6 @@ fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
   String::from_utf8(copy).map_err(|_| error("failed to parse i8 slice as string".to_string()))
 }
 
-struct HandleData {
-  env: Env,
-  this_ref: Ref<()>,
-}
-
 struct MsgItem {
   msg: Vec<u8>,
   sockaddr: sockaddr_un,
@@ -163,8 +158,9 @@ impl DgramSocketWrap {
     };
 
     env.wrap(&mut this, socket)?;
-    let this_ref = env.create_reference(this)?;
-    let data = Box::into_raw(Box::new(HandleData { env, this_ref }));
+    let data = Box::into_raw(Box::new(
+      HandleData::new(env, this)?
+    ));
     unsafe {
       (*handle).data = data as *mut _;
     }
@@ -413,7 +409,6 @@ impl DgramSocketWrap {
 
     let event = env.create_string("close")?;
     self.emitter.emit(&[event.into_unknown()])?;
-    self.emitter.unref()?;
 
     Ok(())
   }
@@ -488,12 +483,11 @@ pub fn on_readable(s: &mut DgramSocketWrap) -> Result<()> {
 extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
   let handle = unsafe { Box::from_raw(handle) };
   let data = unsafe { Box::from_raw(handle.data as *mut HandleData) };
-  let env = data.env;
-  // TODO unwrap
+
+  let env = data.clone_env();
   env
     .run_in_scope(|| {
-      let this: JsObject = env.get_reference_value(&data.this_ref)?;
-      let wrap: &mut DgramSocketWrap = env.unwrap(&this)?;
+      let wrap: &mut DgramSocketWrap = data.inner_mut_ref()?;
 
       // TODO handle UV_ECANCEL
       if status != 0 {
@@ -533,8 +527,6 @@ extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   unsafe {
     let handle = Box::from_raw(handle);
-    let mut data = Box::from_raw(handle.data as *mut HandleData);
-    let env = data.env;
-    let _ = data.this_ref.unref(env);
+    Box::from_raw(handle.data as *mut HandleData);
   };
 }

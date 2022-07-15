@@ -1,5 +1,10 @@
 # unix-socket
 
+## TODO
+
+- support `socket.setSendBufferSize(size)`
+- current, server don't work with cluster module
+
 ## Tmp
 - Connect, Accept
   - how to make connect async?
@@ -8,8 +13,3 @@
   - Mode
     - all callbacks, a lot
     - event emitter instead
-
-## TODO
-
-- support `socket.setSendBufferSize(size)`
-- current, server don't work with cluster module

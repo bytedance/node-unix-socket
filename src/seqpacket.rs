@@ -3,6 +3,7 @@ use std::mem;
 use crate::socket::{close, get_loop, sockaddr_from_string};
 use crate::util::{
   get_err, resolve_libc_err, resolve_uv_err, set_clo_exec, set_non_block, socket_addr_to_string,
+  addr_to_string, error,
 };
 use libc::{sockaddr, sockaddr_un, EINVAL};
 use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
@@ -16,22 +17,30 @@ pub struct SeqpacketSocketWrap {
   env: Env,
   handle: *mut sys::uv_poll_t,
   connect_cb: Option<Ref<JsFunction>>,
+  socket_cb: Option<Ref<JsFunction>>,
 }
 
 #[napi]
 impl SeqpacketSocketWrap {
   #[napi(constructor)]
-  pub fn new(env: Env) -> Result<Self> {
+  pub fn new(env: Env, fd: Option<JsNumber>) -> Result<Self> {
     let domain = libc::AF_UNIX;
     // TODO
     // let ty = libc::SOCK_SEQPACKET;
     let ty = libc::SOCK_STREAM;
     let protocol = 0;
-
-    let fd = unsafe { libc::socket(domain, ty, protocol) };
-    if fd == -1 {
-      return Err(get_err());
-    }
+    let fd: i32 = match fd {
+      Some(fd) => {
+        fd.get_int32()?
+      }
+      None => {
+        let fd = unsafe { libc::socket(domain, ty, protocol) };
+        if fd == -1 {
+          return Err(get_err());
+        }
+        fd
+      }
+    };
 
     set_non_block(fd)?;
     set_clo_exec(fd)?;
@@ -50,6 +59,7 @@ impl SeqpacketSocketWrap {
       env,
       handle,
       connect_cb: None,
+      socket_cb: None,
     }));
 
     unsafe { (*handle).data = wrap as *mut _ };
@@ -57,8 +67,16 @@ impl SeqpacketSocketWrap {
     Ok(unsafe { *Box::from_raw(wrap) })
   }
 
-  fn accept(&self, env: Env) {
-    //
+  #[napi]
+  pub fn set_socket_cb(&mut self, _env: Env, cb: JsFunction) -> Result<()> {
+    self.socket_cb = Some(cb.into_ref()?);
+    Ok(())
+  }
+
+  #[napi]
+  pub fn address(&self, env: Env) -> Result<JsString> {
+    let str = socket_addr_to_string(self.fd)?;
+    env.create_string(&str)
   }
 
   fn bind(&self, bindpath: &str) -> Result<()> {
@@ -77,7 +95,11 @@ impl SeqpacketSocketWrap {
   fn handle_connect(&mut self, status: i32, events: i32) {
     // TODO
     assert!(status == 0, "receive unexpected status: {}", status);
-    assert!(events & sys::uv_poll_event::UV_WRITABLE as i32 != 0, "receive unexpected events: {}", events);
+    assert!(
+      events & sys::uv_poll_event::UV_WRITABLE as i32 != 0,
+      "receive unexpected events: {}",
+      events
+    );
     let env = self.env;
 
     // TODO
@@ -99,14 +121,70 @@ impl SeqpacketSocketWrap {
     }
   }
 
+  // TODO distinguish new conenction and read data
+  fn handle_socket(&mut self, status: i32, events: i32) {
+    // TODO
+    assert!(status == 0, "receive unexpected status: {}", status);
+    assert!(
+      events & sys::uv_poll_event::UV_READABLE as i32 != 0,
+      "receive unexpected events: {}",
+      events
+    );
+    let mut addr = unsafe { mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init() };
+    let mut addr_len = mem::size_of::<sockaddr_un>() as u32;
+    // TODO handle error
+    let fd = resolve_libc_err(unsafe {
+      libc::accept(
+        self.fd,
+        &mut addr as *mut _ as *mut libc::sockaddr,
+        &mut addr_len as *mut _,
+      )
+    }).unwrap();
+
+    assert!(!self.socket_cb.is_none(), "unexpected empty socket_cb");
+    let env = self.env;
+    let addr = addr_to_string(&addr);
+
+    // TODO handle error
+    let _ = env.run_in_scope(|| {
+      // TODO emit socket
+      let mut args: Vec<JsUnknown> = vec![];
+      let js_fd = env.create_int32(fd)?;
+      args.push(js_fd.into_unknown());
+      let js_addr = env.create_string(&addr)?;
+      args.push(js_addr.into_unknown());
+
+      self.socket_cb.as_mut().map(|cb| {
+        // TODO emit error
+        let _ = cb.value(&env, |cb| {
+          cb.call(None, &args)
+        });
+      });
+      Ok(())
+    });
+  }
+
   #[napi]
   pub fn listen(&self, _env: Env, bindpath: JsString, backlog: JsNumber) -> Result<()> {
+    if self.socket_cb.is_none() {
+      return Err(error("expect setting socket_cb before listen()".to_string()))
+    }
     // Should never call listen() with a fd for multiple times.
     let bindpath = bindpath.into_utf8()?;
     let backlog = backlog.get_int32()?;
 
     self.bind(bindpath.as_str()?)?;
     resolve_libc_err(unsafe { libc::listen(self.fd, backlog) })?;
+
+    // start poll
+    resolve_uv_err(unsafe {
+      sys::uv_poll_start(
+        self.handle,
+        sys::uv_poll_event::UV_READABLE as i32,
+        Some(on_socket),
+      )
+    })?;
+
     Ok(())
   }
 
@@ -166,7 +244,7 @@ impl SeqpacketSocketWrap {
   }
 
   #[napi]
-  pub fn close(&self, env: Env) -> Result<()> {
+  pub fn close(&mut self, env: Env) -> Result<()> {
     // close handle
     resolve_uv_err(unsafe { sys::uv_poll_stop(self.handle) })?;
     unsafe {
@@ -176,8 +254,26 @@ impl SeqpacketSocketWrap {
     };
 
     // TODO unref other cb
+    let mut socket_cb = self.socket_cb.take();
+    match socket_cb.as_mut() {
+      None => {}
+      Some(cb) => {
+        cb.unref(env)?;
+      }
+    }
+
     close(self.fd)
   }
+}
+
+extern "C" fn on_socket(
+  handle: *mut sys::uv_poll_t,
+  status: ::std::os::raw::c_int,
+  events: ::std::os::raw::c_int,
+) {
+  let mut wrap = unsafe { Box::from_raw((*handle).data as *mut SeqpacketSocketWrap) };
+  wrap.handle_socket(status, events);
+  Box::leak(wrap);
 }
 
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {

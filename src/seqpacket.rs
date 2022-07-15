@@ -30,7 +30,6 @@ struct MsgItem {
 
 struct SeqpacketSocketWrap {
   fd: i32,
-  // TODO worker_threads
   env: Env,
   handle: *mut sys::uv_poll_t,
   msg_queue: LinkedList<MsgItem>,

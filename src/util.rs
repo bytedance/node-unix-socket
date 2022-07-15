@@ -13,7 +13,8 @@ pub(crate) fn i8_slice_into_u8_slice<'a>(slice: &'a [i8]) -> &'a [u8] {
 }
 
 pub(crate) fn addr_to_string(addr: &sockaddr_un) -> String {
-  // sockaddr_un.sun_path/c_char has varied types in different types so that we transmute() it
+  // sockaddr_un.sun_path/c_char has varied types in different operating systems
+  // so that we directly transmute() it
   let path_ref: &[i8] = unsafe { transmute(&addr.sun_path as &[c_char]) };
   let sockname = i8_slice_into_u8_slice(path_ref);
   let sockname = unsafe { str_from_u8_nul_utf8_unchecked(sockname) };

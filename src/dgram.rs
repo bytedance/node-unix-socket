@@ -101,13 +101,6 @@ pub fn dgram_send_to(
 }
 
 #[allow(dead_code)]
-#[napi]
-pub fn start_recv(env: Env, ee: JsObject) -> Result<()> {
-  let wrap = unwrap(&env, &ee)?;
-  wrap.start_recv(env)
-}
-
-#[allow(dead_code)]
 fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
   let trans = i8_slice_into_u8_slice(slice);
   let mut copy: Vec<u8> = vec![0; trans.len()];
@@ -124,7 +117,6 @@ struct MsgItem {
 
 pub struct DgramSocketWrap {
   fd: i32,
-  // TODO test in worker_threads
   env: Env,
   handle: *mut sys::uv_poll_t,
   msg_queue: LinkedList<MsgItem>,

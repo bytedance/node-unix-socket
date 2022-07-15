@@ -1,10 +1,10 @@
+// TODO add tests for worker_threads
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { DgramSocket } from '../js/index';
-import { kTmp, silently, createDefer } from './util';
+import { kTmp, silently, createDefer, kServerPath } from './util';
 
-const kServerPath = path.resolve(kTmp, './server.sock');
 const kClientPath = path.resolve(kTmp, './client.sock');
 const kInvalidPath = path.resolve(kTmp, './A_PATH_THAT_DOESNT_EXIST');
 
@@ -20,10 +20,7 @@ describe('DgramSocket', () => {
   });
 
   it('should work', async () => {
-    let resolve: any;
-    const readCb = new Promise((r) => {
-      resolve = r;
-    });
+    const { p: readCb, resolve } = createDefer();
     const msg = 'hello';
     const mockFn = jest.fn((buf, filepath) => {
       try {

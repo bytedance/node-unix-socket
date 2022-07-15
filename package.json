@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "main": "js/index.js",
   "types": "js/index.d.ts",
-  "description": "TODO",
+  "author": {
+    "email": "oyydoibh@gmail.com",
+    "name": "Ouyang Yadong"
+  },
+  "description": "nix-socket allows you to use SO_REUSEPORT, SOCK_SEQPACKET, SOCK_DGRAM in Node.js.",
   "scripts": {
     "artifacts": "napi artifacts",
     "build": "napi build --platform --js false --dts js/addon.d.ts && npm run build:ts",

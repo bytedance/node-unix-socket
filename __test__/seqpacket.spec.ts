@@ -1,3 +1,4 @@
+// TODO add tests for worker_threads
 import * as path from 'path';
 import * as fs from 'fs';
 import { SeqpacketSocket, SeqpacketServer } from '../js/seqpacket';

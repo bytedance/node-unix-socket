@@ -5,6 +5,8 @@ export const kIsDarwin = os.platform() === 'darwin'
 
 export const kTmp = path.resolve(__dirname, './.tmp')
 
+export const kServerPath = path.resolve(kTmp, './server.sock');
+
 export function wait(t: number) {
   return new Promise<void>((resolve, reject) => {
     setTimeout(() => {

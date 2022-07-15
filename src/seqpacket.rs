@@ -658,7 +658,6 @@ extern "C" fn on_socket(handle: *mut sys::uv_poll_t, status: c_int, events: c_in
   }
 
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  // TODO unwrap
   let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
   wrap.handle_socket(status, events);
 
@@ -671,7 +670,6 @@ extern "C" fn on_connect(handle: *mut sys::uv_poll_t, status: c_int, events: c_i
   }
 
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  // TODO unwrap
   let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
   wrap.handle_connect(status, events);
   Box::into_raw(data);
@@ -683,7 +681,6 @@ extern "C" fn on_io(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
   }
 
   let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  // TODO unwrap
   let wrap = data.inner_mut_ref::<SeqpacketSocketWrap>().unwrap();
   wrap.handle_io(status, events);
   Box::into_raw(data);

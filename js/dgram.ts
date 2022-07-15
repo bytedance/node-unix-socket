@@ -21,8 +21,24 @@ function wrapSocket(obj: DgramSocket) {
 }
 
 /**
- * DgramSocket docs
- * @public
+ * DgramSocket is used to create a SOCK_DGRAM unix domain socket.
+ * Currently DgramSocket doesn't work with `cluster` module.
+ *
+ * DgramSocket is also an `EventEmitter` and will emit events including:
+ *
+ * ### Event: `'data'`
+ * - buffer `Buffer`
+ * - path `string`
+ *
+ * Emitted when data is received. `path` indicates remote address information.
+ *
+ * ### Event: `'error'`
+ * - error `Error`
+ *
+ * Emitted when an error occurs.
+ *
+ * ### Event: `'close'`
+ * The 'close' event is emitted after a socket is closed with close().
  */
 export class DgramSocket extends EventEmitter {
   private closed: boolean = false;
@@ -42,10 +58,8 @@ export class DgramSocket extends EventEmitter {
   };
 
   private onError = (err: Error) => {
-    process.nextTick(() => {
-      this.close();
-      this.emit('error', err);
-    });
+    this.close();
+    this.emit('error', err);
   };
 
   private checkClosed() {
@@ -55,14 +69,8 @@ export class DgramSocket extends EventEmitter {
   }
 
   /**
-   * Returns the average of two numbers.
-   *
-   * @remarks
-   * This method is part of the {@link core-library#Statistics | Statistics subsystem}.
-   *
-   * @param x - The first input number
-   * @param y - The second input number
-   * @returns The arithmetic mean of `x` and `y`
+   * Listen for datagram messages on a path.
+   * @param socketPath
    */
   bind(socketPath: string) {
     this.checkClosed();
@@ -70,7 +78,7 @@ export class DgramSocket extends EventEmitter {
   }
 
   /**
-   * TODO sendTo
+   * Send messages to the destination path.
    * @param buf
    * @param offset
    * @param length
@@ -88,26 +96,50 @@ export class DgramSocket extends EventEmitter {
     dgramSendTo(this, buf, offset, length, destPath, onWrite);
   }
 
+  /**
+   * @returns the SO_RCVBUF socket receive buffer size in bytes.
+   */
   getRecvBufferSize() {
     return dgramGetRecvBufferSize(this);
   }
 
+  /**
+   * Sets the SO_RCVBUF socket option. Sets the maximum socket receive buffer in bytes.
+   * @param size
+   * @returns
+   */
   setRecvBufferSize(size: number) {
     return dgramSetRecvBufferSize(this, size);
   }
 
+  /**
+   * @returns the SO_SNDBUF socket send buffer size in bytes.
+   */
   getSendBufferSize() {
     return dgramGetSendBufferSize(this);
   }
 
+  /**
+   * Sets the SO_SNDBUF socket option. Sets the maximum socket send buffer in bytes.
+   * @param size
+   * @returns
+   */
   setSendBufferSize(size: number) {
     return dgramSetSendBufferSize(this, size);
   }
 
+  /**
+   * Returns the bound address.
+   * @returns
+   */
   address(): string {
     return dgramAddress(this);
   }
 
+  /**
+   * Close the underlying socket and stop listening for data on it.
+   * @returns
+   */
   close() {
     if (this.closed) {
       return;

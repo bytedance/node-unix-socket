@@ -2,7 +2,24 @@
 
 # Class: DgramSocket
 
-DgramSocket docs
+DgramSocket is used to create a SOCK_DGRAM unix domain socket.
+Currently DgramSocket doesn't work with `cluster` module.
+
+DgramSocket is also an `EventEmitter` and will emit events including:
+
+### Event: `'data'`
+- buffer `Buffer`
+- path `string`
+
+Emitted when data is received. `path` indicates remote address information.
+
+### Event: `'error'`
+- error `Error`
+
+Emitted when an error occurs.
+
+### Event: `'close'`
+The 'close' event is emitted after a socket is closed with close().
 
 ## Hierarchy
 
@@ -39,7 +56,7 @@ EventEmitter.constructor
 
 #### Defined in
 
-dgram.ts:30
+dgram.ts:46
 
 ## Methods
 
@@ -47,13 +64,15 @@ dgram.ts:30
 
 ▸ **address**(): `string`
 
+Returns the bound address.
+
 #### Returns
 
 `string`
 
 #### Defined in
 
-dgram.ts:107
+dgram.ts:135
 
 ___
 
@@ -61,10 +80,7 @@ ___
 
 ▸ **bind**(`socketPath`): `void`
 
-Returns the average of two numbers.
-
-**`remarks`**
-This method is part of the {@link core-library#Statistics | Statistics subsystem}.
+Listen for datagram messages on a path.
 
 #### Parameters
 
@@ -76,11 +92,9 @@ This method is part of the {@link core-library#Statistics | Statistics subsystem
 
 `void`
 
-The arithmetic mean of `x` and `y`
-
 #### Defined in
 
-dgram.ts:67
+dgram.ts:75
 
 ___
 
@@ -88,13 +102,15 @@ ___
 
 ▸ **close**(): `void`
 
+Close the underlying socket and stop listening for data on it.
+
 #### Returns
 
 `void`
 
 #### Defined in
 
-dgram.ts:111
+dgram.ts:143
 
 ___
 
@@ -106,9 +122,11 @@ ___
 
 `number`
 
+the SO_RCVBUF socket receive buffer size in bytes.
+
 #### Defined in
 
-dgram.ts:91
+dgram.ts:102
 
 ___
 
@@ -120,9 +138,11 @@ ___
 
 `number`
 
+the SO_SNDBUF socket send buffer size in bytes.
+
 #### Defined in
 
-dgram.ts:99
+dgram.ts:118
 
 ___
 
@@ -130,7 +150,7 @@ ___
 
 ▸ **sendTo**(`buf`, `offset`, `length`, `destPath`, `onWrite?`): `void`
 
-TODO sendTo
+Send messages to the destination path.
 
 #### Parameters
 
@@ -148,7 +168,7 @@ TODO sendTo
 
 #### Defined in
 
-dgram.ts:80
+dgram.ts:88
 
 ___
 
@@ -156,6 +176,8 @@ ___
 
 ▸ **setRecvBufferSize**(`size`): `void`
 
+Sets the SO_RCVBUF socket option. Sets the maximum socket receive buffer in bytes.
+
 #### Parameters
 
 | Name | Type |
@@ -168,7 +190,7 @@ ___
 
 #### Defined in
 
-dgram.ts:95
+dgram.ts:111
 
 ___
 
@@ -176,6 +198,8 @@ ___
 
 ▸ **setSendBufferSize**(`size`): `void`
 
+Sets the SO_SNDBUF socket option. Sets the maximum socket send buffer in bytes.
+
 #### Parameters
 
 | Name | Type |
@@ -188,4 +212,4 @@ ___
 
 #### Defined in
 
-dgram.ts:103
+dgram.ts:127

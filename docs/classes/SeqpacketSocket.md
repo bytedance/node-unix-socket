@@ -66,7 +66,7 @@ EventEmitter.constructor
 
 #### Defined in
 
-seqpacket.ts:147
+seqpacket.ts:148
 
 ## Methods
 
@@ -92,7 +92,7 @@ However, connect() will throw error synchronously if the 'serverPath' is not a v
 
 #### Defined in
 
-seqpacket.ts:209
+seqpacket.ts:210
 
 ___
 
@@ -108,7 +108,7 @@ Ensures that no more I/O activity happens on this socket. Destroys the stream an
 
 #### Defined in
 
-seqpacket.ts:272
+seqpacket.ts:273
 
 ___
 
@@ -130,7 +130,7 @@ Half-closes the socket. i.e., it sends a FIN packet. It is possible the server w
 
 #### Defined in
 
-seqpacket.ts:231
+seqpacket.ts:232
 
 ___
 
@@ -148,7 +148,7 @@ Default size is 256KB.
 
 #### Defined in
 
-seqpacket.ts:242
+seqpacket.ts:243
 
 ___
 
@@ -164,7 +164,7 @@ Reference the socket so that it will prevent Node.js process from exiting automa
 
 #### Defined in
 
-seqpacket.ts:258
+seqpacket.ts:259
 
 ___
 
@@ -186,7 +186,7 @@ Set the size of buffer that SeqpacketSocket uses to receive data.
 
 #### Defined in
 
-seqpacket.ts:251
+seqpacket.ts:252
 
 ___
 
@@ -202,7 +202,7 @@ Unreference the socket so that it won't prevent Node.js process from exiting aut
 
 #### Defined in
 
-seqpacket.ts:265
+seqpacket.ts:266
 
 ___
 
@@ -227,4 +227,4 @@ Sends data on the socket.
 
 #### Defined in
 
-seqpacket.ts:222
+seqpacket.ts:223

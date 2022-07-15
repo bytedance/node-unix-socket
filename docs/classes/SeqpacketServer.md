@@ -2,7 +2,8 @@
 
 # Class: SeqpacketServer
 
-SeqpacketServer is used to create a SOCK_SEQPACKET server. SeqpacketServer doesn't works on MacOS.
+SeqpacketServer is used to create a SOCK_SEQPACKET server.
+Note that sockets of SOCK_SEQPACKET don't works on MacOS and currently SeqpacketServer doesn't work with `cluster` module, i.e. you can share a SeqpacketServer across different Node.js processes.
 
 SeqpacketServer is also an `EventEmitter` and will emit events including:
 
@@ -53,7 +54,7 @@ EventEmitter.constructor
 
 #### Defined in
 
-seqpacket.ts:47
+seqpacket.ts:48
 
 ## Methods
 
@@ -69,7 +70,7 @@ Returns the bound address.
 
 #### Defined in
 
-seqpacket.ts:74
+seqpacket.ts:75
 
 ___
 
@@ -87,7 +88,7 @@ This function is synchronous.
 
 #### Defined in
 
-seqpacket.ts:85
+seqpacket.ts:86
 
 ___
 
@@ -110,7 +111,7 @@ Start a server listening for connections on the given path. This function is syn
 
 #### Defined in
 
-seqpacket.ts:98
+seqpacket.ts:99
 
 ___
 
@@ -126,7 +127,7 @@ Reference the server so that it will prevent Node.js process from exiting automa
 
 #### Defined in
 
-seqpacket.ts:106
+seqpacket.ts:107
 
 ___
 
@@ -142,4 +143,4 @@ Unreference the server so that it won't prevent Node.js process from exiting aut
 
 #### Defined in
 
-seqpacket.ts:113
+seqpacket.ts:114

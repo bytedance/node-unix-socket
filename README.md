@@ -1,12 +1,12 @@
-# nix-socket
+# node-unix-socket
 
-`nix-socket` allows you to use some nonblocking sockets that are not supported by Node.js native modules, including:
+`node-unix-socket` allows you to use some nonblocking sockets that are not supported by Node.js native modules, including:
 
 - Using `SO_REUSEPORT` enabled TCP [net.Server](https://nodejs.org/dist/latest-v16.x/docs/api/net.html#class-netserver)
 - unix seqpacket(`SOCK_SEQPACKET`) sockets
 - unix datagram(`SOCK_DGRAM`) sockets
 
-`nix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html). This lib uses [libuv](https://libuv.org/) inside Node.js so that it won't introduce any other asynchronous runtimes.
+`node-unix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html). This lib uses [libuv](https://libuv.org/) inside Node.js so that it won't introduce any other asynchronous runtimes.
 
 ## API Documents
 
@@ -27,7 +27,7 @@ Note that `SO_REUSEPORT` might behave much differently across operating systems.
 ### Example
 
 ```js
-const { createReuseportFd } = require('nix-socket');
+const { createReuseportFd } = require('node-unix-socket');
 const { Server, Socket } = require('net');
 
 const port = 8080;
@@ -75,7 +75,7 @@ Note that `SOCK_SEQPACKET` sockets don't work on MacOS.
 ### Example
 
 ```js
-const { SeqpacketServer, SeqpacketSocket } = require('nix-socket');
+const { SeqpacketServer, SeqpacketSocket } = require('node-unix-socket');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -110,7 +110,7 @@ client.connect(bindPath, () => {
 ### Example
 
 ```js
-const { DgramSocket } = require('nix-socket');
+const { DgramSocket } = require('node-unix-socket');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');

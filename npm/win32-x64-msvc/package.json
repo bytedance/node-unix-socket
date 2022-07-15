@@ -1,5 +1,5 @@
 {
-  "name": "nix-socket-win32-x64-msvc",
+  "name": "node-unix-socket-win32-x64-msvc",
   "version": "0.0.0",
   "os": [
     "win32"
@@ -7,9 +7,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "nix-socket.win32-x64-msvc.node",
+  "main": "node-unix-socket.win32-x64-msvc.node",
   "files": [
-    "nix-socket.win32-x64-msvc.node"
+    "node-unix-socket.win32-x64-msvc.node"
   ],
   "license": "MIT",
   "engines": {

@@ -1,5 +1,5 @@
+use std::collections::LinkedList;
 use std::mem;
-use std::{collections::LinkedList};
 
 use libc::{
   self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINTR, ENOBUFS, EWOULDBLOCK,
@@ -150,9 +150,7 @@ impl DgramSocketWrap {
     };
 
     env.wrap(&mut this, socket)?;
-    let data = Box::into_raw(Box::new(
-      HandleData::new(env, this)?
-    ));
+    let data = Box::into_raw(Box::new(HandleData::new(env, this)?));
     unsafe {
       (*handle).data = data as *mut _;
     }
@@ -390,113 +388,121 @@ impl DgramSocketWrap {
 
     Ok(())
   }
-}
 
-pub fn on_readable(s: &mut DgramSocketWrap) -> Result<()> {
-  loop {
-    let mut msg = unsafe { mem::MaybeUninit::<msghdr>::zeroed().assume_init() };
-    let cap = 65535;
-    let mut base = vec![0; cap];
-    let base_ptr = base.as_mut_ptr();
-
-    let mut iov = libc::iovec {
-      iov_base: base_ptr as *mut _,
-      iov_len: cap,
-    };
-
-    let mut name = unsafe { mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init() };
-    let name_len = mem::size_of::<sockaddr_un>();
-    msg.msg_iovlen = 1;
-    msg.msg_iov = &mut iov as *mut _;
-    msg.msg_name = &mut name as *mut sockaddr_un as *mut _;
-    msg.msg_namelen = name_len as u32;
-
-    let mut ret;
+  fn read_data(&mut self) -> Result<()> {
+    let s = self;
     loop {
-      ret = unsafe { libc::recvmsg(s.fd, &mut msg as *mut _, 0) };
-      if !(ret == -1 && errno() == nix::Error::EINTR as i32) {
-        break;
-      }
-    }
+      let mut msg = unsafe { mem::MaybeUninit::<msghdr>::zeroed().assume_init() };
+      let cap = 65535;
+      let mut base = vec![0; cap];
+      let base_ptr = base.as_mut_ptr();
 
-    let mut args: Vec<JsUnknown> = vec![];
-    let env = s.env.clone();
-
-    if ret == -1 {
-      let err = errno();
-      if err == EAGAIN || err == EWOULDBLOCK || err == ENOBUFS {
-        break;
-      }
-      let event = env.create_string("_error")?;
-      args.push(event.into_unknown());
-      let err = error(format!("recv msg failed, errno: {}", errno()));
-      let err = env.create_error(err)?;
-      args.push(err.into_unknown());
-    } else {
-      let len = ret as usize;
-      let slice = base[0..len].to_vec();
-
-      let name = unsafe { *(msg.msg_name as *mut sockaddr_un) };
-
-      let js_sockname = {
-        let name = addr_to_string(&name);
-        env.create_string(&name)?
+      let mut iov = libc::iovec {
+        iov_base: base_ptr as *mut _,
+        iov_len: cap,
       };
 
-      let buf = env.create_buffer_with_data(slice)?;
-      let event = env.create_string("_data")?;
-      args.push(event.into_unknown());
-      args.push(buf.into_unknown());
-      args.push(js_sockname.into_unknown());
+      let mut name = unsafe { mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init() };
+      let name_len = mem::size_of::<sockaddr_un>();
+      msg.msg_iovlen = 1;
+      msg.msg_iov = &mut iov as *mut _;
+      msg.msg_name = &mut name as *mut sockaddr_un as *mut _;
+      msg.msg_namelen = name_len as u32;
+
+      let mut ret;
+      loop {
+        ret = unsafe { libc::recvmsg(s.fd, &mut msg as *mut _, 0) };
+        if !(ret == -1 && errno() == nix::Error::EINTR as i32) {
+          break;
+        }
+      }
+
+      let mut args: Vec<JsUnknown> = vec![];
+      let env = s.env.clone();
+
+      if ret == -1 {
+        let err = errno();
+        if err == EAGAIN || err == EWOULDBLOCK || err == ENOBUFS {
+          break;
+        }
+        let event = env.create_string("_error")?;
+        args.push(event.into_unknown());
+        let err = error(format!("recv msg failed, errno: {}", errno()));
+        let err = env.create_error(err)?;
+        args.push(err.into_unknown());
+      } else {
+        let len = ret as usize;
+        let slice = base[0..len].to_vec();
+
+        let name = unsafe { *(msg.msg_name as *mut sockaddr_un) };
+
+        let js_sockname = {
+          let name = addr_to_string(&name);
+          env.create_string(&name)?
+        };
+
+        let buf = env.create_buffer_with_data(slice)?;
+        let event = env.create_string("_data")?;
+        args.push(event.into_unknown());
+        args.push(buf.into_unknown());
+        args.push(js_sockname.into_unknown());
+      }
+
+      let _ = s.emitter.emit(&args).map_err(|e| {
+        let _ = env.throw_error(&e.reason, None);
+      });
     }
 
-    let _ = s.emitter.emit(&args).map_err(|e| {
-      let _ = env.throw_error(&e.reason, None);
-    });
+    Ok(())
   }
 
-  Ok(())
+  fn handle_event(&mut self, status: i32, events: i32) {
+    if status == sys::uv_errno_t::UV_ECANCELED as i32 {
+      return;
+    }
+
+    let env = self.env;
+    env
+      .run_in_scope(|| {
+        if status != 0 {
+          let _ = env.throw_error(&format!("on_event receive error status: {}", status), None);
+          return Ok(());
+        }
+
+        if events & uv_poll_event::UV_READABLE as i32 != 0 {
+          self
+            .read_data()
+            .map_err(|e| {
+              let _ = env.throw_error(&e.reason, None);
+              e
+            })
+            .or::<napi::Error>(Ok(()))
+            .unwrap();
+        }
+
+        if events & uv_poll_event::UV_WRITABLE as i32 != 0 {
+          self
+            .flush()
+            .map_err(|e| {
+              let _ = env.throw_error(&e.reason, None);
+              e
+            })
+            .or::<napi::Error>(Ok(()))
+            .unwrap();
+        }
+
+        Ok(())
+      })
+      .unwrap();
+  }
 }
 
 extern "C" fn on_event(handle: *mut sys::uv_poll_t, status: i32, events: i32) {
   let handle = unsafe { Box::from_raw(handle) };
   let data = unsafe { Box::from_raw(handle.data as *mut HandleData) };
 
-  let env = data.clone_env();
-  env
-    .run_in_scope(|| {
-      let wrap: &mut DgramSocketWrap = data.inner_mut_ref()?;
-
-      // TODO handle UV_ECANCEL
-      if status != 0 {
-        let _ = env.throw_error(&format!("on_event receive error status: {}", status), None);
-        return Ok(());
-      }
-
-      if events & uv_poll_event::UV_READABLE as i32 != 0 {
-        on_readable(wrap)
-          .map_err(|e| {
-            let _ = env.throw_error(&e.reason, None);
-            e
-          })
-          .or::<napi::Error>(Ok(()))
-          .unwrap();
-      }
-
-      if events & uv_poll_event::UV_WRITABLE as i32 != 0 {
-        wrap
-          .flush()
-          .map_err(|e| {
-            let _ = env.throw_error(&e.reason, None);
-            e
-          })
-          .or::<napi::Error>(Ok(()))
-          .unwrap();
-      }
-
-      Ok(())
-    })
-    .unwrap();
+  let wrap: &mut DgramSocketWrap = data.inner_mut_ref().unwrap();
+  wrap.handle_event(status, events);
 
   Box::into_raw(data);
   Box::into_raw(handle);

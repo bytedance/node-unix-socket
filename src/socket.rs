@@ -136,10 +136,6 @@ impl HandleData {
     Ok(HandleData { env, this_ref })
   }
 
-  pub fn clone_env(&self) -> Env {
-    self.env
-  }
-
   pub fn inner_mut_ref<'a, T: 'static>(&'a self) -> Result<&'a mut T> {
     let env = self.env;
     let native = env.run_in_scope(|| {

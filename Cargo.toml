@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "nix-socket"
+name = "node-unix-socket"
 version = "0.0.0"
 
 [lib]

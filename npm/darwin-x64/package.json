@@ -1,5 +1,5 @@
 {
-  "name": "nix-socket-darwin-x64",
+  "name": "node-unix-socket-darwin-x64",
   "version": "0.0.0",
   "os": [
     "darwin"
@@ -7,9 +7,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "nix-socket.darwin-x64.node",
+  "main": "node-unix-socket.darwin-x64.node",
   "files": [
-    "nix-socket.darwin-x64.node"
+    "node-unix-socket.darwin-x64.node"
   ],
   "license": "MIT",
   "engines": {

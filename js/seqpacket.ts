@@ -143,7 +143,9 @@ export class SeqpacketServer extends EventEmitter {
 export class SeqpacketSocket extends EventEmitter {
   private destroyed: boolean = false;
   private connectCb?: NotifyCb;
-  private endCb?: NotifyCb;
+  private shutdownCb?: NotifyCb;
+  private shutdown: boolean = false;
+  private isEnd: boolean = false
 
   constructor(fd?: number) {
     super();
@@ -152,24 +154,28 @@ export class SeqpacketSocket extends EventEmitter {
       seqStartRecv(this);
     }
     this.on('_data', this.onData);
+    this.on('end', this.onEnd);
     this.on('_connect', this.onConnect);
     this.on('_error', this.onError);
     this.on('_shutdown', this.onShutdown);
   }
 
+  private onEnd = () => {
+    this.isEnd = true;
+    this.checkClose();
+  }
+
   private onShutdown = () => {
-    if (this.endCb) {
-      this.endCb();
-      this.endCb = undefined;
+    this.shutdown = true;
+    this.checkClose();
+    if (this.shutdownCb) {
+      this.shutdownCb();
+      this.shutdownCb = undefined;
     }
   };
 
   private onData = (buf: Buffer) => {
-    if (buf.length === 0) {
-      this.emit('end');
-    } else {
-      this.emit('data', buf);
-    }
+    this.emit('data', buf);
   };
 
   private checkDestroyed() {
@@ -193,6 +199,12 @@ export class SeqpacketSocket extends EventEmitter {
       this.connectCb = undefined;
     }
   };
+
+  private checkClose() {
+    if (this.isEnd && this.shutdown) {
+      this.destroy()
+    }
+  }
 
   // address(): string {
   //   this.checkDestroyed();
@@ -220,7 +232,11 @@ export class SeqpacketSocket extends EventEmitter {
    * @param length
    * @param cb
    */
-  write(buf: Buffer, offset: number, length: number, cb?: NotifyCb) {
+  write(buf: Buffer, offset?: number, length?: number, cb?: NotifyCb) {
+    if (arguments.length === 1) {
+      offset = 0
+      length = buf.length
+    }
     this.checkDestroyed();
     seqWrite(this, buf, offset, length, cb);
   }
@@ -230,7 +246,7 @@ export class SeqpacketSocket extends EventEmitter {
    * @param cb
    */
   end(cb?: NotifyCb) {
-    this.endCb = cb;
+    this.shutdownCb = cb;
     seqShutdownWhenFlushed(this);
   }
 

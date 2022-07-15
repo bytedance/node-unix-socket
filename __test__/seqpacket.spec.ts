@@ -11,8 +11,10 @@ async function createTestPair(
     client: SeqpacketSocket;
     server: SeqpacketServer;
     socket: SeqpacketSocket;
-  }) => Promise<any>
+  }) => Promise<any>,
+  options: { autoClose: boolean } = { autoClose: true }
 ) {
+  const { autoClose } = options
   const server = new SeqpacketServer();
   const client = new SeqpacketSocket();
   server.listen(kServerpath);
@@ -33,6 +35,9 @@ async function createTestPair(
     socket,
   });
 
+  if (!autoClose) {
+    return
+  }
   socket.destroy();
   client.destroy();
   server.close();
@@ -551,6 +556,47 @@ if (!kIsDarwin) {
         client.ref();
         client.unref();
       });
+    });
+
+    it('should write whole buffer if "offset" and "length" are missed', async () => {
+      await createTestPair(async (args) => {
+        const { client, socket } = args;
+        const buf = Buffer.from('hello, world');
+        client.write(buf)
+
+        const {p, resolve } = createDefer();
+        socket.on('data', received => {
+          expect(received.toString('hex')).toBe(buf.toString('hex'))
+          resolve()
+        })
+        await p
+      });
+    });
+
+    it('should emit "close" in sockets automatically when both read and write side of sockets are end', async () => {
+      await createTestPair(async (args) => {
+        const { client, socket, server } = args;
+
+        const { p: p1, resolve: r1 } = createDefer();
+        const { p: p2, resolve: r2 } = createDefer();
+
+        client.on('close', () => {
+          r1()
+        });
+        socket.on('close', () => {
+          r2()
+        })
+
+        client.write(Buffer.alloc(1024 * 64))
+        client.end()
+        socket.write(Buffer.alloc(1024 * 64))
+        socket.end()
+        await Promise.all([p1, p2])
+
+        server.close();
+      }, {
+        autoClose: false,
+      })
     });
   });
 } else {

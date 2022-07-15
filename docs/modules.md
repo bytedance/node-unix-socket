@@ -1,6 +1,6 @@
-[unix-socket](README.md) / Exports
+[nix-socket](README.md) / Exports
 
-# unix-socket
+# nix-socket
 
 ## Table of contents
 

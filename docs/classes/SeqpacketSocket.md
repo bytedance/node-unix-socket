@@ -1,4 +1,4 @@
-[unix-socket](../README.md) / [Exports](../modules.md) / SeqpacketSocket
+[nix-socket](../README.md) / [Exports](../modules.md) / SeqpacketSocket
 
 # Class: SeqpacketSocket
 

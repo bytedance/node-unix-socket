@@ -1,4 +1,4 @@
-[unix-socket](../README.md) / [Exports](../modules.md) / DgramSocket
+[nix-socket](../README.md) / [Exports](../modules.md) / DgramSocket
 
 # Class: DgramSocket
 

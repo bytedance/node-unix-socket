@@ -176,7 +176,6 @@ impl SeqpacketSocketWrap {
     resolve_uv_err(unsafe { sys::uv_poll_init(uv_loop, handle, fd) })?;
 
     let wrap = Self {
-      // this,
       fd,
       emitter: Emitter::new(env, emit_fn)?,
       env,
@@ -460,14 +459,19 @@ impl SeqpacketSocketWrap {
         }
       } else {
         let size = ret as usize;
-
         let env = self.env;
         env.run_in_scope(|| {
           let mut args: Vec<JsUnknown> = vec![];
-          let js_event = env.create_string("_data")?;
-          args.push(js_event.into_unknown());
-          let js_buf = env.create_buffer_with_data(buf[0..size].to_vec())?;
-          args.push(js_buf.into_unknown());
+
+          if size == 0 {
+            let js_event = env.create_string("end")?;
+            args.push(js_event.into_unknown());
+          } else {
+            let js_event = env.create_string("_data")?;
+            args.push(js_event.into_unknown());
+            let js_buf = env.create_buffer_with_data(buf[0..size].to_vec())?;
+            args.push(js_buf.into_unknown());
+          }
           self.emitter.emit(&args)?;
           Ok(())
         })?;

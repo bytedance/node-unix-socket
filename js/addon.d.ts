@@ -5,6 +5,8 @@
 
 export class SeqpacketSocketWrap {
   constructor()
+  listen(bindpath: string, backlog: number): void
+  connect(serverPath: string, cb: (...args: any[]) => any): void
   write(buf: Buffer, cb: (...args: any[]) => any): void
   close(): void
 }

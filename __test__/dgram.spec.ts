@@ -1,32 +1,14 @@
 import * as path from 'path'
 import * as fs from 'fs'
 import { DgramSocket } from '../js/index'
+import { kTmp, sliently, createDefer } from './util'
 
-const kTmp = path.resolve(__dirname, './.tmp')
 const kServerPath = path.resolve(kTmp, './server.sock')
 const kClientPath = path.resolve(kTmp, './client.sock')
 const kInvalidPath = path.resolve(kTmp, './A_PATH_THAT_DOESNT_EXIST')
 
 const emptyFn = () => {}
 
-function sliently(fn) {
-  try { fn() } catch (_) { }
-}
-
-function createDefer<T>() {
-  let resolve, reject
-
-  const p = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-
-  return {
-    p,
-    resolve,
-    reject,
-  }
-}
 
 describe('DgramSocket', () => {
   beforeAll(() => {

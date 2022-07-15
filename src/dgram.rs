@@ -1,23 +1,19 @@
 use std::mem;
-use std::{collections::LinkedList, ffi::CString, intrinsics::transmute, str::FromStr};
+use std::{collections::LinkedList, ffi::CString, intrinsics::transmute};
 
 use libc::{
-  self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINPROGRESS, EINTR, ENOBUFS,
+  self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINTR, ENOBUFS,
   EWOULDBLOCK,
 };
 use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
 use nix::{self, errno::errno};
 use uv_sys::sys::{self, uv_poll_event};
 
-use crate::socket::{close};
+use crate::socket::{close, get_loop, sockaddr_from_string};
 use crate::util::{
   addr_to_string, error, get_err, i8_slice_into_u8_slice, resolve_libc_err, resolve_uv_err,
   set_clo_exec, set_non_block, socket_addr_to_string,
 };
-
-fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
-  Ok(env.get_uv_event_loop()? as *mut _ as *mut sys::uv_loop_t)
-}
 
 #[allow(dead_code)]
 fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
@@ -163,28 +159,6 @@ extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   unsafe {
     Box::from_raw(handle);
   };
-}
-
-unsafe fn sockaddr_from_string(bytes: &str) -> Result<sockaddr_un> {
-  let mut bytes = String::from_str(bytes).unwrap();
-  bytes.push('\0');
-
-  let mut sockaddr = mem::MaybeUninit::<sockaddr_un>::zeroed().assume_init();
-  sockaddr.sun_len = 0;
-  // looks like `sun_len` is not necessary
-  // (*sockaddr).sun_len = bytes.len() as u8;
-  sockaddr.sun_family = libc::AF_UNIX as u8;
-
-  let size = mem::size_of_val(&sockaddr.sun_path);
-
-  if bytes.len() > size {
-    return Err(error("path to bind is too long".to_string()));
-  }
-  let path = (&mut sockaddr.sun_path.as_mut_slice()[0..bytes.len()]) as *mut _ as *mut [u8];
-  let path = &mut *path;
-  path.clone_from_slice(bytes.as_bytes());
-
-  Ok(sockaddr)
 }
 
 struct MsgItem {
@@ -440,7 +414,7 @@ impl DgramSocketWrap {
     let offset = offset as usize;
     let end = end as usize;
 
-    let addr = unsafe { sockaddr_from_string(&path)? };
+    let (addr, _) = unsafe { sockaddr_from_string(&path)? };
 
     let m = MsgItem {
       sockaddr: addr,

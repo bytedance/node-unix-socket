@@ -1,10 +1,10 @@
 # node-unix-socket
 
-`node-unix-socket` allows you to use some nonblocking sockets that are not supported by Node.js native modules, including:
+`node-unix-socket` allows you to use some nonblocking unix sockets that are currently not supported by Node.js native modules, including:
 
-- Using `SO_REUSEPORT` enabled TCP [net.Server](https://nodejs.org/dist/latest-v16.x/docs/api/net.html#class-netserver)
 - unix seqpacket(`SOCK_SEQPACKET`) sockets
 - unix datagram(`SOCK_DGRAM`) sockets
+- Using `SO_REUSEPORT` enabled TCP [net.Server](https://nodejs.org/dist/latest-v16.x/docs/api/net.html#class-netserver)
 
 `node-unix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html). This lib uses [libuv](https://libuv.org/) inside Node.js so that it won't introduce any other asynchronous runtimes.
 

@@ -3,7 +3,7 @@ use std::intrinsics::transmute;
 use std::mem;
 
 use libc::{sockaddr, sockaddr_un};
-use napi::{self, Error, JsBuffer, Result};
+use napi::{self, Error, JsBuffer, Result, JsFunction, JsObject};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use uv_sys::sys;
@@ -116,4 +116,13 @@ pub(crate) fn buf_into_vec(buf: JsBuffer, offset: i32, length: i32) -> Result<Ve
   let end = end as usize;
 
   Ok(buf[offset..end].to_vec())
+}
+
+pub(crate) fn check_emit(ee: &JsObject) -> Result<()> {
+  let emit_fn = ee.get_named_property::<JsFunction>("emit");
+  if emit_fn.is_err() {
+    return Err(error("expect a js object with 'emit' function".to_string()));
+  }
+
+  Ok(())
 }

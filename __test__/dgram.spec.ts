@@ -1,292 +1,311 @@
-import * as path from 'path'
-import * as fs from 'fs'
-import { DgramSocket } from '../js/index'
-import { kTmp, sliently, createDefer } from './util'
+import * as path from 'path';
+import * as fs from 'fs';
+import { DgramSocket } from '../js/index';
+import { kTmp, sliently, createDefer } from './util';
 
-const kServerPath = path.resolve(kTmp, './server.sock')
-const kClientPath = path.resolve(kTmp, './client.sock')
-const kInvalidPath = path.resolve(kTmp, './A_PATH_THAT_DOESNT_EXIST')
+const kServerPath = path.resolve(kTmp, './server.sock');
+const kClientPath = path.resolve(kTmp, './client.sock');
+const kInvalidPath = path.resolve(kTmp, './A_PATH_THAT_DOESNT_EXIST');
 
-const emptyFn = () => {}
-
+const emptyFn = () => {};
 
 describe('DgramSocket', () => {
   beforeAll(() => {
-    sliently(() => fs.mkdirSync(kTmp))
-  })
+    sliently(() => fs.mkdirSync(kTmp));
+  });
   beforeEach(async () => {
-    sliently(() => fs.unlinkSync(kServerPath))
-    sliently(() => fs.unlinkSync(kClientPath))
-  })
+    sliently(() => fs.unlinkSync(kServerPath));
+    sliently(() => fs.unlinkSync(kClientPath));
+  });
 
   it('should work', async () => {
-    let resolve: any
+    let resolve: any;
     const readCb = new Promise((r) => {
-      resolve = r
-    })
-    const msg = 'hello'
-    const mockFn = jest.fn((err, buf, filepath) => {
+      resolve = r;
+    });
+    const msg = 'hello';
+    const mockFn = jest.fn((buf, filepath) => {
       try {
-        expect(buf.toString()).toBe(msg)
-        expect(filepath).toBe('')
+        expect(buf.toString()).toBe(msg);
+        expect(filepath).toBe('');
       } catch (err) {
-        console.log(err)
+        console.log(err);
       }
-      resolve()
-    })
-    const client = new DgramSocket(() => {})
-    const server = new DgramSocket(mockFn as any)
+      resolve();
+    });
+    const client = new DgramSocket();
+    const server = new DgramSocket();
 
-    server.bind(kServerPath)
+    server.on('data', mockFn as any);
+
+    server.bind(kServerPath);
 
     const waitCb = new Promise<void>((resolve, reject) => {
-      const buf = Buffer.from(msg)
+      const buf = Buffer.from(msg);
       client.sendTo(buf, 0, buf.length, kServerPath, () => {
-        resolve()
-      })
-    })
+        resolve();
+      });
+    });
 
-    await waitCb
-    await readCb
+    await waitCb;
+    await readCb;
 
-    client.close()
-    server.close()
-  })
+    client.close();
+    server.close();
+  });
 
   it('should work when sending a lot of data', async () => {
-    const receiveData: any[] = []
-    const writePromiseList: any[] = []
-    const msg = 'hello'
+    const receiveData: any[] = [];
+    const writePromiseList: any[] = [];
+    const msg = 'hello';
 
     const times = 1024;
-    let received = 0
+    let received = 0;
 
-    let resolve: any
-    let reject: any
+    let resolve: any;
+    let reject: any;
 
     const waitDataPromise = new Promise((res, rej) => {
-      resolve = res
-      reject = rej
-    })
+      resolve = res;
+      reject = rej;
+    });
 
-    const client = new DgramSocket(() => {})
-    const server = new DgramSocket((err, data) => {
-      receiveData.push(data)
-      received += 1
+    const client = new DgramSocket();
+    const server = new DgramSocket();
+    server.on('data', (data) => {
+      receiveData.push(data);
+      received += 1;
       if (received === times) {
-        resolve()
+        resolve();
       }
-    })
+    });
 
-    server.bind(kServerPath)
+    server.bind(kServerPath);
 
     // Try to trigger a ENOBUFS
     for (let i = 0; i < times; i += 1) {
       const waitCb = new Promise<void>((resolve, reject) => {
-        const buf = Buffer.from(msg)
+        const buf = Buffer.from(msg);
         client.sendTo(buf, 0, buf.length, kServerPath, (err) => {
           if (err) {
-            reject(err)
-            return
+            reject(err);
+            return;
           }
-          resolve()
-        })
-      })
-      writePromiseList.push(waitCb)
+          resolve();
+        });
+      });
+      writePromiseList.push(waitCb);
     }
 
-    await Promise.all(writePromiseList)
-    await waitDataPromise
+    await Promise.all(writePromiseList);
+    await waitDataPromise;
 
-    receiveData.forEach(data => {
-      expect(Buffer.isBuffer(data)).toBe(true)
-      expect(data.length).toBe(msg.length)
-    })
+    receiveData.forEach((data) => {
+      expect(Buffer.isBuffer(data)).toBe(true);
+      expect(data.length).toBe(msg.length);
+    });
 
-    client.close()
-    server.close()
-  })
+    client.close();
+    server.close();
+  });
 
   it('should throw errors when sendTo() fail', async () => {
-    const client = new DgramSocket(() => {})
+    const client = new DgramSocket();
 
-    const buf = Buffer.from('hello')
+    const buf = Buffer.from('hello');
 
-    await expect(new Promise<void>((resolve, reject) => {
-      client.sendTo(buf, 0, buf.length, kInvalidPath, (err) => {
-        if (err) {
-          return reject(err)
-        }
-        resolve()
+    await expect(
+      new Promise<void>((resolve, reject) => {
+        client.sendTo(buf, 0, buf.length, kInvalidPath, (err) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve();
+        });
       })
-    })).rejects.toThrow()
+    ).rejects.toThrow('No such file or directory');
 
-    client.close()
+    client.close();
   });
 
   it('should throw when trying to bind a path that is too long', async () => {
-    const socket = new DgramSocket(() => {})
+    const socket = new DgramSocket();
 
-    expect(() => socket.bind(path.resolve(kTmp, './' + 't'.repeat(65535)))).toThrow('path to bind is too long')
+    expect(() =>
+      socket.bind(path.resolve(kTmp, './' + 't'.repeat(65535)))
+    ).toThrow('path to bind is too long');
 
-    socket.close()
-  })
+    socket.close();
+  });
 
   it('should not emit segment fault when we delete the sock path of a DgramSocket before closing it', async () => {
-    const server = new DgramSocket(() => {})
-    server.bind(kServerPath)
-    const client = new DgramSocket(() => {})
+    const server = new DgramSocket();
+    server.bind(kServerPath);
+    const client = new DgramSocket();
     {
       let buf = Buffer.from('hello');
-      client.sendTo(buf, 0, buf.length, kServerPath, () => {})
+      client.sendTo(buf, 0, buf.length, kServerPath);
     }
 
-    fs.unlinkSync(kServerPath)
-    const server2 = new DgramSocket(() => {})
-    server2.bind(kServerPath)
+    fs.unlinkSync(kServerPath);
+    const server2 = new DgramSocket();
+    server2.bind(kServerPath);
 
     {
       let buf = Buffer.from('hello');
-      client.sendTo(buf, 0, buf.length, kServerPath, () => {})
+      client.sendTo(buf, 0, buf.length, kServerPath);
     }
 
-    client.close()
-    server.close()
-    server2.close()
-  })
+    client.close();
+    server.close();
+    server2.close();
+  });
 
   it('should work when we call close in callbacks', async () => {
-    const server = new DgramSocket(() => {
-      server.close()
-    })
-    server.bind(kServerPath)
-    const client = new DgramSocket(() => {})
+    const server = new DgramSocket();
+    server.on('data', () => server.close());
+    server.bind(kServerPath);
+    const client = new DgramSocket();
 
-    const buf = Buffer.from('hello')
+    const buf = Buffer.from('hello');
     const afterSend = () => {
       process.nextTick(() => {
         client.close();
-      })
+      });
     };
     client.sendTo(buf, 0, buf.length, kServerPath, afterSend);
     client.sendTo(buf, 0, buf.length, kServerPath, afterSend);
-  })
+  });
 
   it('should return remote path correctly', async () => {
-    let resolve
+    let resolve;
 
     let waitMsg = new Promise((res, rej) => {
-      resolve = res
+      resolve = res;
     });
 
     const mockFn = jest.fn(() => {
-      resolve()
-    })
-    const client = new DgramSocket(emptyFn)
-    client.bind(kClientPath)
-    const server = new DgramSocket(mockFn)
-    server.bind(kServerPath)
+      resolve();
+    });
+    const client = new DgramSocket();
+    client.bind(kClientPath);
+    const server = new DgramSocket();
+    server.on('data', mockFn);
+    server.bind(kServerPath);
 
-    const buf = Buffer.from('hello')
-    client.sendTo(buf, 0, buf.length, kServerPath, emptyFn)
+    const buf = Buffer.from('hello');
+    client.sendTo(buf, 0, buf.length, kServerPath, emptyFn);
 
-    await waitMsg
+    await waitMsg;
 
-    expect(mockFn.mock.calls.length).toBe(1)
-    const call: any = mockFn.mock.calls[0]
-    expect(call[2]).toBe(kClientPath);
+    expect(mockFn.mock.calls.length).toBe(1);
+    const call: any = mockFn.mock.calls[0];
+    expect(call[1]).toBe(kClientPath);
 
-    client.close()
-    server.close()
-  })
+    client.close();
+    server.close();
+  });
 
   // TODO
   xit('should emit "uncaughtException" when throw errors in callbacks', async () => {
-    let resolve
+    let resolve;
 
     let waitMsg = new Promise((res, rej) => {
-      resolve = res
+      resolve = res;
     });
 
     process.on('uncaughtException', (e) => {
-      console.log('ee', e)
-      resolve(e)
-    })
+      console.log('ee', e);
+      resolve(e);
+    });
 
-    const client = new DgramSocket(emptyFn)
-    const server = new DgramSocket(() => {
-      throw new Error('error')
-    })
-    server.bind(kServerPath)
+    const client = new DgramSocket();
+    client.on('data', emptyFn);
+    const server = new DgramSocket();
+    server.on('data', () => {
+      throw new Error('error');
+    });
+    server.bind(kServerPath);
 
-    const buf = Buffer.from('hello')
-    client.sendTo(buf, 0, buf.length, kServerPath, emptyFn)
-    const e = await waitMsg
+    const buf = Buffer.from('hello');
+    client.sendTo(buf, 0, buf.length, kServerPath, emptyFn);
+    const e = await waitMsg;
 
-    client.close()
-    server.close()
+    client.close();
+    server.close();
   });
 
   it('should allow to send zeroed msg ', async () => {
-    const { p, resolve } = createDefer<Buffer>()
+    const { p, resolve } = createDefer<Buffer>();
 
-    const client = new DgramSocket(emptyFn)
-    const server = new DgramSocket((err, buf) => {
-      resolve(buf)
-    })
-    server.bind(kServerPath)
+    const client = new DgramSocket();
+    const server = new DgramSocket();
+    server.on('data', (buf) => {
+      resolve(buf);
+    });
+    server.bind(kServerPath);
 
     const buf = Buffer.alloc(1024).fill(0);
-    client.sendTo(buf, 0, buf.length, kServerPath, emptyFn)
+    client.sendTo(buf, 0, buf.length, kServerPath, emptyFn);
 
-    const bufReceived = await p
-    expect(buf.toString('hex')).toBe(bufReceived.toString('hex'))
+    const bufReceived = await p;
+    expect(buf.toString('hex')).toBe(bufReceived.toString('hex'));
 
-    client.close()
-    server.close()
-  })
+    client.close();
+    server.close();
+  });
 
   it('should allow to send a long msg (although the msg might get dropped)', async () => {
-    const { p, resolve } = createDefer<Buffer>()
+    const { p, resolve } = createDefer<Buffer>();
 
-    const client = new DgramSocket(emptyFn)
-    const server = new DgramSocket(emptyFn)
-    server.bind(kServerPath)
+    const client = new DgramSocket();
+    const server = new DgramSocket();
+    server.bind(kServerPath);
 
     const buf = Buffer.alloc(1024 * 1024).fill(0);
     const sendCb = jest.fn();
     client.sendTo(buf, 0, buf.length, kServerPath, () => {
-      resolve()
-    })
+      resolve();
+    });
 
-    await p
+    await p;
 
-    client.close()
-    server.close()
-  })
+    client.close();
+    server.close();
+  });
 
   it('should return address', () => {
-    const server = new DgramSocket(emptyFn)
-    expect(server.address()).toBe('')
+    const server = new DgramSocket();
+    expect(server.address()).toBe('');
 
-    server.bind(kServerPath)
+    server.bind(kServerPath);
     expect(server.address()).toBe(kServerPath);
 
     server.close();
-    expect(() => server.address()).toThrow()
-  })
+    expect(() => server.address()).toThrow();
+  });
 
   it('shoud set/send recv/send buffer size', () => {
-    const server = new DgramSocket(emptyFn);
+    const server = new DgramSocket();
 
-    const size = 511
+    const size = 511;
 
-    server.setRecvBufferSize(size)
-    expect(server.getRecvBufferSize()).toBe(size)
+    server.setRecvBufferSize(size);
+    expect(server.getRecvBufferSize()).toBe(size);
 
-    server.setSendBufferSize(size)
-    expect(server.getSendBufferSize()).toBe(size)
+    server.setSendBufferSize(size);
+    expect(server.getSendBufferSize()).toBe(size);
 
-    server.close()
+    server.close();
   });
-})
+
+  it('should emit "close"', async () => {
+    const client = new DgramSocket()
+    const { p, resolve } = createDefer();
+    client.on('close', () => {
+      resolve()
+    })
+    client.close()
+    await p
+  });
+});

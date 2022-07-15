@@ -1,17 +1,30 @@
 import { EventEmitter } from 'events';
-import { SeqpacketSocketWrap } from './addon'
+import {
+  seqAddress,
+  seqClose,
+  seqConnect,
+  seqCreateSocket,
+  seqListen,
+  seqSetNapiBufSize,
+  seqShutdownWhenFlushed,
+  seqStartRecv,
+  seqWrite,
+} from './addon'
 
 // type ConnectionCb = (socket: SeqpacketSocket, addr: string) => void;
 type NotifyCb = () => void;
 
-// events: close, connection, error, listening
+function wrapSocket(obj: EventEmitter, fd?: number) {
+  obj.emit = obj.emit.bind(obj);
+  seqCreateSocket(obj, fd);
+}
+
 export class SeqpacketServer extends EventEmitter {
-  private wrap: SeqpacketSocketWrap
   private closed: boolean = false
 
   constructor() {
     super();
-    this.wrap = new SeqpacketSocketWrap(this.emit.bind(this))
+    wrapSocket(this);
     this.on('_connection', this.onConnection);
     this.on('error', this.onError);
   }
@@ -33,7 +46,7 @@ export class SeqpacketServer extends EventEmitter {
 
   address(): string {
     this.checkClosed();
-    return this.wrap.address()
+    return seqAddress(this)
   }
 
   close() {
@@ -41,12 +54,12 @@ export class SeqpacketServer extends EventEmitter {
       return
     }
     this.closed = true
-    this.wrap.close()
+    seqClose(this)
   }
 
   listen(bindpath: string, backlog: number = 511) {
     this.checkClosed();
-    this.wrap.listen(bindpath, backlog);
+    seqListen(this, bindpath, backlog);
   }
 
   // ref() {
@@ -59,16 +72,15 @@ export class SeqpacketServer extends EventEmitter {
 }
 
 export class SeqpacketSocket extends EventEmitter {
-  private wrap: SeqpacketSocketWrap
   private destroyed: boolean = false
   private connectCb?: NotifyCb;
   private endCb?: NotifyCb;
 
   constructor(fd?: number) {
     super();
-    this.wrap = new SeqpacketSocketWrap(this.emit.bind(this), fd)
+    wrapSocket(this, fd);
     if (fd) {
-      this.wrap.startRecv();
+      seqStartRecv(this);
     }
     this.on('_data', this.onData);
     this.on('_connect', this.onConnect);
@@ -106,7 +118,7 @@ export class SeqpacketSocket extends EventEmitter {
 
   private onConnect = () => {
     process.nextTick(() => {
-      this.wrap.startRecv();
+      seqStartRecv(this);
       if (this.connectCb) {
         this.connectCb()
         this.connectCb = undefined;
@@ -117,22 +129,22 @@ export class SeqpacketSocket extends EventEmitter {
 
   address(): string {
     this.checkDestroyed();
-    return this.wrap.address()
+    return seqAddress(this)
   }
 
   connect(serverPath: string, connectCb?: NotifyCb) {
     this.checkDestroyed();
     this.connectCb = connectCb;
-    this.wrap.connect(serverPath);
+    seqConnect(this, serverPath);
   }
 
   write(buf: Buffer, offset: number, length: number, cb?: NotifyCb) {
-    this.wrap.write(buf, offset, length, cb);
+    seqWrite(this, buf, offset, length, cb);
   }
 
   end(cb?: NotifyCb) {
     this.endCb = cb;
-    this.wrap.shutdownWhenFlushed();
+    seqShutdownWhenFlushed(this);
   }
 
   destroy() {
@@ -140,6 +152,6 @@ export class SeqpacketSocket extends EventEmitter {
       return
     }
     this.destroyed = true
-    this.wrap.close()
+    seqClose(this)
   }
 }

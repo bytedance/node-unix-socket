@@ -236,5 +236,4 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-module.exports.DgramSocketWrap = nativeBinding.DgramSocketWrap
-module.exports.SeqpacketSocketWrap = nativeBinding.SeqpacketSocketWrap
+module.exports = nativeBinding

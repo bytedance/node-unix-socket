@@ -1,61 +1,96 @@
-import { DgramSocketWrap } from './addon'
+import { EventEmitter } from 'events';
+import {
+  dgramAddress,
+  dgramBind,
+  dgramClose,
+  dgramCreateSocket,
+  dgramGetRecvBufferSize,
+  dgramGetSendBufferSize,
+  dgramSendTo,
+  dgramSetRecvBufferSize,
+  dgramSetSendBufferSize,
+  dgramStartRecv,
+} from './addon';
 
 type FnRecv = (err: undefined | Error, buf: Buffer) => void;
 type FnSend = (err: undefined | Error) => void;
 
-export class DgramSocket {
-  private wrap: DgramSocketWrap;
-  private closed: boolean = false
+function wrapSocket(obj: DgramSocket) {
+  obj.emit = obj.emit.bind(obj);
+  dgramCreateSocket(obj);
+}
 
-  constructor(onRecv: FnRecv) {
-    this.wrap = new DgramSocketWrap(onRecv)
-    // NOTE: always refThis() before startRecv() in avoid of DgramSocketWrap being
-    // reclaimed too early.
-    this.wrap.refThis(this.wrap)
-    this.wrap.startRecv();
+export class DgramSocket extends EventEmitter {
+  private closed: boolean = false;
+
+  constructor() {
+    super();
+    wrapSocket(this);
+    dgramStartRecv(this);
+    this.on('_data', this.onData);
+    this.on('_error', this.onError);
   }
+
+  private onData = (buf: Buffer, filepath: string) => {
+    process.nextTick(() => {
+      this.emit('data', buf, filepath);
+    });
+  };
+
+  private onError = (err: Error) => {
+    process.nextTick(() => {
+      this.close();
+      this.emit('error', err);
+    });
+  };
 
   private checkClosed() {
     if (this.closed) {
-      throw new Error('DgramSocket has been closed')
+      throw new Error('DgramSocket has been closed');
     }
   }
 
   bind(socketPath: string) {
     this.checkClosed();
-    this.wrap.bind(socketPath);
+    dgramBind(this, socketPath);
   }
 
-  sendTo(buf: Buffer, offset: number, length: number, destPath: string, onWrite: FnSend) {
+  sendTo(
+    buf: Buffer,
+    offset: number,
+    length: number,
+    destPath: string,
+    onWrite?: FnSend
+  ) {
     this.checkClosed();
-    this.wrap.sendTo(buf, offset, length, destPath, onWrite);
+    dgramSendTo(this, buf, offset, length, destPath, onWrite);
   }
 
   getRecvBufferSize() {
-    return this.wrap.getRecvBufferSize()
+    return dgramGetRecvBufferSize(this);
   }
 
   setRecvBufferSize(size: number) {
-    return this.wrap.setRecvBufferSize(size)
+    return dgramSetRecvBufferSize(this, size);
   }
 
   getSendBufferSize() {
-    return this.wrap.getSendBufferSize()
+    return dgramGetSendBufferSize(this);
   }
 
   setSendBufferSize(size: number) {
-    return this.wrap.setSendBufferSize(size)
+    return dgramSetSendBufferSize(this, size);
   }
 
   address(): string {
-    return this.wrap.address();
+    return dgramAddress(this);
   }
 
   close() {
     if (this.closed) {
-      return
+      return;
     }
-    this.closed = true
-    this.wrap.close()
+    this.closed = true;
+    dgramClose(this);
   }
 }

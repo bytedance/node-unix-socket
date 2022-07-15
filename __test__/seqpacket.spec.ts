@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { SeqpacketSocket, SeqpacketServer } from '../js/seqpacket';
-import { kTmp, sliently, createDefer, wait } from './util';
+import { kTmp, sliently, createDefer, } from './util';
 
 const kServerpath = path.resolve(kTmp, './seqpacket_server.sock');
 
@@ -61,7 +61,6 @@ describe('SeqpacketSocket', () => {
     }
 
     {
-      // TODO connections
       const server = new SeqpacketServer();
 
       const { p, resolve } = createDefer()

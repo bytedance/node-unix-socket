@@ -9,6 +9,7 @@ use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, R
 use nix::{self, errno::errno};
 use uv_sys::sys::{self, uv_poll_event};
 
+use crate::socket::{close};
 use crate::util::{
   addr_to_string, error, get_err, i8_slice_into_u8_slice, resolve_libc_err, resolve_uv_err,
   set_clo_exec, set_non_block, socket_addr_to_string,
@@ -100,6 +101,7 @@ pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
 
   Ok(())
 }
+
 pub fn on_writable(s: &mut Box<DgramSocketWrap>) -> Result<()> {
   s.flush()
 }
@@ -471,14 +473,6 @@ impl DgramSocketWrap {
       }
     }
 
-    let ret = unsafe { libc::close(self.fd) };
-
-    if ret != 0 {
-      if ret != EINTR && ret != EINPROGRESS {
-        return Err(get_err());
-      }
-    }
-
-    return Ok(());
+    close(self.fd)
   }
 }

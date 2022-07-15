@@ -237,3 +237,4 @@ if (!nativeBinding) {
 }
 
 module.exports.DgramSocketWrap = nativeBinding.DgramSocketWrap
+module.exports.SeqpacketSocketWrap = nativeBinding.SeqpacketSocketWrap

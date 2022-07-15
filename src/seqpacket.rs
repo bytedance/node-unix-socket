@@ -1,8 +1,9 @@
 use napi::{Env, JsBuffer, JsFunction, JsObject, JsUnknown, Ref, Result};
+use crate::socket::{close};
 use crate::util::{get_err, set_non_block, set_clo_exec};
 
 #[napi]
-struct SeqpacketSocketWrap {
+pub struct SeqpacketSocketWrap {
   fd: i32,
   env: Env,
 }
@@ -37,6 +38,7 @@ impl SeqpacketSocketWrap {
 
   #[napi]
   pub fn close(&self, env: Env) -> Result<()> {
-    Ok(())
+    // TODO
+    close(self.fd)
   }
 }

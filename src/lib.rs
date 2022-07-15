@@ -6,3 +6,4 @@ extern crate napi_derive;
 mod seqpacket;
 mod dgram;
 mod util;
+mod socket;

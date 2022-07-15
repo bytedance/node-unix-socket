@@ -502,4 +502,8 @@ if (!kIsDarwin) {
       });
     });
   });
+} else {
+  describe('seqpacket', () => {
+    it('(tests skipped)', () => {})
+  })
 }

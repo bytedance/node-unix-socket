@@ -1,18 +1,20 @@
+use std::ffi::CString;
 use std::mem;
-use std::{str::FromStr};
+use std::str::FromStr;
 
-use libc::{sockaddr_un};
-use napi::{Result, Env, Ref, JsFunction, JsUnknown, JsObject};
+use crate::util::{error, get_err, resolve_libc_err, resolve_uv_err};
+use libc::{c_void, sockaddr_storage, sockaddr_un};
+use napi::{Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
 use uv_sys::sys;
-use crate::util::{get_err, error};
 
-pub (crate) fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
+pub(crate) fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
   Ok(env.get_uv_event_loop()? as *mut _ as *mut sys::uv_loop_t)
 }
 
 pub(crate) fn close(fd: i32) -> Result<()> {
   let ret = unsafe { libc::close(fd) };
 
+  // TODO should we loop?
   if ret != 0 {
     if ret != libc::EINTR && ret != libc::EINPROGRESS {
       return Err(get_err());
@@ -52,7 +54,6 @@ pub(crate) fn sockaddr_from_string(bytes: &str) -> Result<(sockaddr_un, usize)> 
 
   Ok((sockaddr, mem::size_of::<sockaddr_un>()))
 }
-
 
 pub(crate) struct Emitter {
   env: Env,
@@ -124,7 +125,6 @@ impl Emitter {
   }
 }
 
-
 pub(crate) struct HandleData {
   env: Env,
   this_ref: Ref<()>,
@@ -155,4 +155,107 @@ impl HandleData {
     self.this_ref.unref(env)?;
     Ok(())
   }
+}
+
+fn bind_socket(env: Env, fd: i32, domain: i32, port: JsNumber, ip: JsString) -> Result<JsNumber> {
+  let mut on: i32 = 1;
+  resolve_libc_err(unsafe {
+    libc::setsockopt(
+      fd,
+      libc::SOL_SOCKET,
+      libc::SO_REUSEADDR,
+      &mut on as *mut _ as *mut c_void,
+      mem::size_of::<i32>() as u32,
+    )
+  })?;
+
+  let mut on: i32 = 1;
+  resolve_libc_err(unsafe {
+    libc::setsockopt(
+      fd,
+      libc::SOL_SOCKET,
+      libc::SO_REUSEPORT,
+      &mut on as *mut _ as *mut c_void,
+      mem::size_of::<i32>() as u32,
+    )
+  })?;
+
+  // parse ip port
+  let ip = ip.into_utf8()?;
+  let ip_str = CString::new(ip.as_str()?.to_string().into_bytes())?;
+  let mut addr = unsafe { mem::MaybeUninit::<sockaddr_storage>::zeroed().assume_init() };
+  let addr_len: u32;
+  let port = port.get_int32()?;
+  if domain == libc::AF_INET {
+    resolve_uv_err(unsafe {
+      sys::uv_ip4_addr(
+        ip_str.as_c_str().as_ptr(),
+        port,
+        &mut addr as *mut _ as *mut sys::sockaddr_in,
+      )
+    })?;
+    addr_len = mem::size_of::<sys::sockaddr_in>() as u32;
+  } else {
+    resolve_uv_err(unsafe {
+      sys::uv_ip6_addr(
+        ip_str.as_c_str().as_ptr(),
+        port,
+        &mut addr as *mut _ as *mut sys::sockaddr_in6,
+      )
+    })?;
+    addr_len = mem::size_of::<sys::sockaddr_in6>() as u32;
+  };
+
+  // bind socket
+  resolve_libc_err(unsafe {
+    libc::bind(
+      fd,
+      &mut addr as *mut _ as *mut libc::sockaddr,
+      addr_len,
+    )
+  })?;
+
+  Ok(env.create_int32(fd)?)
+}
+
+#[allow(dead_code)]
+#[napi]
+fn socket_new_so_reuseport_fd(
+  env: Env,
+  domain: JsString,
+  port: JsNumber,
+  ip: JsString,
+) -> Result<JsNumber> {
+  let domain = domain.into_utf8()?;
+  let s = domain.as_str()?;
+  let domain = match s {
+    "ipv4" => libc::AF_INET,
+    "ipv6" => libc::AF_INET6,
+    _ => {
+      return Err(error(
+        "unexpected domain paramter, expect 'ipv4' or 'ipv6'".to_string(),
+      ))
+    }
+  };
+
+  // create socket and set SO_REUSEPORT
+  let fd = resolve_libc_err(unsafe { libc::socket(domain, libc::SOCK_STREAM, 0) })?;
+
+  let fd = match bind_socket(env, fd, domain, port, ip) {
+    Ok(fd) => fd,
+    Err(e) => {
+      close(fd).unwrap();
+      return Err(e)
+    }
+  };
+
+  Ok(fd)
+}
+
+#[allow(dead_code)]
+#[napi]
+fn socket_close(fd: JsNumber) -> Result<()> {
+  let fd = fd.get_int32()?;
+
+  close(fd)
 }

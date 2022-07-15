@@ -31,3 +31,14 @@ export function createDefer<T>() {
     reject,
   }
 }
+
+const isWindows = os.platform() === 'win32';
+
+export function hasIPv6() {
+  const iFaces = os.networkInterfaces();
+  const re = isWindows ? /Loopback Pseudo-Interface/ : /lo/;
+  return Object.keys(iFaces).some((name) => {
+    return re.test(name) &&
+           iFaces[name].some(({ family }) => family === 'IPv6');
+  });
+}

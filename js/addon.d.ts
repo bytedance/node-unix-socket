@@ -24,3 +24,5 @@ export function dgramGetSendBufferSize(ee: object): number
 export function dgramSetSendBufferSize(ee: object, size: number): void
 export function dgramSendTo(ee: object, buf: Buffer, offset: number, length: number, path: string, cb?: (...args: any[]) => any | undefined | null): void
 export function startRecv(ee: object): void
+export function socketNewSoReuseportFd(domain: string, port: number, ip: string): number
+export function socketClose(fd: number): void

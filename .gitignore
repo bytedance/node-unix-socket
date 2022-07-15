@@ -6,3 +6,4 @@ test.js
 
 js/**/*.js
 !js/addon.js
+test.ts

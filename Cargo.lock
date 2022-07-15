@@ -1284,6 +1284,8 @@ dependencies = [
 [[package]]
 name = "uv-sys"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9231f97b1423ef4bc3bc14a40b77ac08d534d67df30eb417fb13304d12f9d239"
 dependencies = [
  "bindgen",
  "flate2",

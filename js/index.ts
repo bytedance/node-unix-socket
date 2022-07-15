@@ -1,2 +1,2 @@
 export { DgramSocket } from './dgram'
-export { SeqpacketSocket } from './seqpacket'
+export { SeqpacketSocket, SeqpacketServer } from './seqpacket'

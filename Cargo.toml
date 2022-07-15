@@ -8,11 +8,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
-napi = { path = "../napi-rs/crates/napi" }
+napi = { path = "../napi-rs/crates/napi", features = ["napi3"] }
 napi-derive = "2.2.0"
 libc = "0.2.123"
 nix = "0.23"
-uv-sys = { path = "../uv-sys"}
+uv-sys = "0.1"
 
 [build-dependencies]
 napi-build = "1.2.1"

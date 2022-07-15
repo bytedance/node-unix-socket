@@ -1,52 +1,60 @@
-const path = require('path')
-const fs = require('fs')
-const { DgramSocket } = require('../js/index')
+const path = require('path');
+const fs = require('fs');
+const { DgramSocket } = require('../js/index');
 
-const kServerPath = path.resolve(__dirname, '../__test__/.tmp/dgram_memory.sock')
+const kServerPath = path.resolve(
+  __dirname,
+  '../__test__/.tmp/dgram_memory.sock'
+);
 
 async function sendSomeBufs() {
-  try { fs.unlinkSync(kServerPath) } catch (e) { }
+  try {
+    fs.unlinkSync(kServerPath);
+  } catch (e) {}
 
-  const client = new DgramSocket(() => {})
-  const server = new DgramSocket(() => {})
+  const client = new DgramSocket(() => {});
+  const server = new DgramSocket(() => {});
 
-  server.bind(kServerPath)
+  server.bind(kServerPath);
 
-  const pList = []
+  const pList = [];
 
   for (let i = 0; i < 1024; i += 1) {
     const buf = Buffer.allocUnsafe(1024);
-    let resolve
-    let reject
+    let resolve;
+    let reject;
     const p = new Promise((res, rej) => {
-      resolve = res
-      reject = rej
-    })
+      resolve = res;
+      reject = rej;
+    });
     client.sendTo(buf, 0, buf.length, kServerPath, (err) => {
       if (err) {
-        reject(err)
-        return
+        reject(err);
+        return;
       }
-      resolve()
-    })
+      resolve();
+    });
 
-    pList.push(p)
+    pList.push(p);
   }
 
-  await Promise.all(pList)
-  client.close()
-  server.close()
+  await Promise.all(pList);
+  client.close();
+  server.close();
 }
 
 module.exports = {
   kServerPath,
-}
+};
 
 if (module === require.main) {
   setInterval(() => {
-    sendSomeBufs().catch(err => {
-      console.error(err)
-    })
-    console.log(process.memoryUsage())
-  }, 500)
+    sendSomeBufs().catch((err) => {
+      console.error(err);
+    });
+    if (global.gc) {
+      global.gc()
+    }
+    console.log(process.memoryUsage());
+  }, 500);
 }

@@ -1,9 +1,8 @@
 use std::mem;
-use std::{collections::LinkedList, ffi::CString, intrinsics::transmute};
+use std::{collections::LinkedList, intrinsics::transmute};
 
 use libc::{
-  self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINTR, ENOBUFS,
-  EWOULDBLOCK,
+  self, c_void, iovec, msghdr, sockaddr, sockaddr_un, EAGAIN, EINTR, ENOBUFS, EWOULDBLOCK,
 };
 use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
 use nix::{self, errno::errno};
@@ -11,8 +10,8 @@ use uv_sys::sys::{self, uv_poll_event};
 
 use crate::socket::{close, get_loop, sockaddr_from_string};
 use crate::util::{
-  addr_to_string, error, get_err, i8_slice_into_u8_slice, resolve_libc_err, resolve_uv_err,
-  set_clo_exec, set_non_block, socket_addr_to_string,
+  addr_to_string, buf_into_vec, error, get_err, i8_slice_into_u8_slice,
+  resolve_libc_err, resolve_uv_err, set_clo_exec, set_non_block, socket_addr_to_string,
 };
 
 #[allow(dead_code)]
@@ -27,8 +26,8 @@ fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
 pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
   let mut msg = unsafe { mem::MaybeUninit::<msghdr>::zeroed().assume_init() };
   let cap = 65535;
-  let base = unsafe { CString::from_vec_unchecked(vec![0; cap]) };
-  let base_ptr = base.into_raw();
+  let mut base = vec![0; cap];
+  let base_ptr = base.as_mut_ptr();
 
   let mut iov = libc::iovec {
     iov_base: base_ptr as *mut _,
@@ -54,8 +53,6 @@ pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
   let env = &s.env;
 
   if ret == -1 {
-    unsafe { Box::from_raw(base_ptr) };
-
     let err = error(format!("recv msg failed, errno: {}", errno()));
     let err = env.create_error(err)?;
     args.push(err.into_unknown());
@@ -67,13 +64,8 @@ pub fn on_readable(s: &Box<DgramSocketWrap>) -> Result<()> {
         let _ = env.throw_error(&e.reason, None);
       });
   } else {
-    let iov = unsafe { *msg.msg_iov };
-    // NOTE: Vec::from_raw_parts will consum the ptr and respond to reclaim it.
-    // TODO not safe
-    let iov_base =
-      unsafe { Vec::from_raw_parts(iov.iov_base as *mut u8, iov.iov_len, iov.iov_len) };
     let len = ret as usize;
-    let slice = iov_base[0..len].to_vec();
+    let slice = base[0..len].to_vec();
 
     let name = unsafe { *(msg.msg_name as *mut sockaddr_un) };
 
@@ -231,13 +223,7 @@ impl DgramSocketWrap {
     Ok(())
   }
 
-  /**
-   * NOTE: Because we can't get the "this" js object of DgramSocketWrap instances,
-   * we need to call ref_this manually in the js side to prevent the js object
-   * from been garbage-collected.
-   *
-   * TODO Is there a way to get the js object in rust side?
-   */
+  // TODO remove
   #[napi]
   pub fn ref_this(&mut self, this_obj: JsObject) -> Result<()> {
     let this = this_obj.into_ref()?;
@@ -324,7 +310,7 @@ impl DgramSocketWrap {
         libc::SOL_SOCKET,
         libc::SO_SNDBUF,
         &mut val as *mut _ as *mut c_void,
-        len
+        len,
       )
     })?;
     Ok(())
@@ -340,9 +326,8 @@ impl DgramSocketWrap {
       let mut msg = unsafe { mem::MaybeUninit::<msghdr>::zeroed().assume_init() };
       let mut iov = unsafe { mem::MaybeUninit::<iovec>::zeroed().assume_init() };
       let len = item.msg.len();
-      let base = unsafe { CString::from_vec_unchecked(item.msg.clone()) };
 
-      iov.iov_base = base.into_raw() as *mut _;
+      iov.iov_base = item.msg.as_mut_ptr() as *mut _;
       iov.iov_len = len;
 
       msg.msg_iovlen = 1;
@@ -358,8 +343,6 @@ impl DgramSocketWrap {
           break;
         }
       }
-
-      unsafe { Box::from_raw(iov.iov_base) };
 
       let mut args: Vec<JsUnknown> = vec![];
       if ret == -1 {
@@ -397,28 +380,27 @@ impl DgramSocketWrap {
     Ok(())
   }
 
-  /**
-   * buf, offset, length, path
-   */
   #[napi]
   pub fn send_to(
     &mut self,
     buf: JsBuffer,
-    offset: i32,
-    length: i32,
+    offset: JsNumber,
+    length: JsNumber,
     path: String,
     cb: JsFunction,
   ) -> Result<()> {
-    let buf = buf.into_value()?;
+    let offset = offset.get_int32()?;
+    let length = length.get_int32()?;
     let end = offset + length;
-    let offset = offset as usize;
-    let end = end as usize;
+    let offset = offset;
+    let end = end;
+    let msg = buf_into_vec(buf, offset, end)?;
 
     let (addr, _) = unsafe { sockaddr_from_string(&path)? };
 
     let m = MsgItem {
       sockaddr: addr,
-      msg: buf[offset..end].to_vec(),
+      msg,
       cb: cb.into_ref()?,
     };
 
@@ -432,19 +414,33 @@ impl DgramSocketWrap {
   #[napi]
   pub fn close(&mut self, env: Env) -> Result<()> {
     // stop watcher
-    resolve_uv_err(unsafe { sys::uv_poll_stop(self.handle) })?;
+    let is_closing = unsafe { sys::uv_is_closing(self.handle as *mut _) } != 0;
+    if !is_closing {
+      resolve_uv_err(unsafe { sys::uv_poll_stop(self.handle) })?;
+    }
     unsafe {
       (*(self.handle)).data = std::ptr::null_mut();
       let handle = mem::transmute(self.handle);
       sys::uv_close(handle, Some(on_close));
     };
 
+    // release Ref<JsFunction> in msg_queue
     self.recv_cb.unref(env)?;
     match self.this.as_mut() {
       None => {}
       Some(this) => {
         this.unref(env)?;
       }
+    }
+
+    loop {
+      let msg = self.msg_queue.pop_front();
+      if msg.is_none() {
+        break;
+      }
+
+      let mut msg = msg.unwrap();
+      msg.cb.unref(env)?;
     }
 
     close(self.fd)

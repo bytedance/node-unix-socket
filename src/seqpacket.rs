@@ -2,7 +2,7 @@ use std::collections::LinkedList;
 use std::mem;
 use std::os::raw::c_int;
 
-use crate::socket::{self, get_loop, sockaddr_from_string, Emitter, HandleData};
+use crate::socket::{self, get_loop, sockaddr_from_string, Emitter, HandleData, UvRefence};
 use crate::util::{
   addr_to_string, buf_into_vec, check_emit, error, get_err, resolve_libc_err, resolve_uv_err,
   set_clo_exec, set_non_block, socket_addr_to_string, uv_err_msg,
@@ -12,7 +12,7 @@ use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, R
 use nix::errno::errno;
 use uv_sys::sys;
 
-const DEFAULT_READ_BUF_SIZE: usize = 65535;
+const DEFAULT_READ_BUF_SIZE: usize = 256 * 1024;
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone)]
 enum State {
@@ -127,6 +127,28 @@ pub fn seq_shutdown_when_flushed(env: Env, ee: JsObject) -> Result<()> {
   wrap.shutdown_when_flushed()
 }
 
+#[allow(dead_code)]
+#[napi]
+pub fn seq_ref(env: Env, ee: JsObject) -> Result<()> {
+  let wrap = unwrap(&env, &ee)?;
+  wrap.refer();
+  Ok(())
+}
+
+#[allow(dead_code)]
+#[napi]
+pub fn seq_unref(env: Env, ee: JsObject) -> Result<()> {
+  let wrap = unwrap(&env, &ee)?;
+  wrap.urnef();
+  Ok(())
+}
+
+impl UvRefence for SeqpacketSocketWrap {
+  fn get_handle(&self) -> *mut sys::uv_poll_t {
+      self.handle
+  }
+}
+
 impl SeqpacketSocketWrap {
   fn wrap_obj(env: Env, mut this: JsObject, fd: Option<JsNumber>) -> Result<()> {
     let ty = libc::SOCK_SEQPACKET;
@@ -218,7 +240,7 @@ impl SeqpacketSocketWrap {
 
   fn emit_error(&mut self, error: napi::Error) {
     let env = self.env;
-    self.stop_poll().unwrap();
+
     // TODO unwrap
     env
       .run_in_scope(|| {
@@ -251,8 +273,7 @@ impl SeqpacketSocketWrap {
       return;
     }
 
-    // FIXME: error ignored
-    let _ = self.emitter.emit_event("_connect");
+    self.emitter.emit_event("_connect").unwrap();
   }
 
   fn handle_socket(&mut self, status: i32, _events: i32) {

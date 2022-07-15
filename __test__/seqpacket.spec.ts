@@ -4,6 +4,7 @@ import { SeqpacketSocket, SeqpacketServer } from '../js/seqpacket';
 import { kTmp, silently, createDefer, kIsDarwin, wait } from './util';
 
 const kServerpath = path.resolve(kTmp, './seqpacket_server.sock');
+const kInvalidPath = path.resolve(kTmp, './INVALID_PATH');
 
 async function createTestPair(
   next: (args: {
@@ -344,7 +345,7 @@ if (!kIsDarwin) {
         client.destroy();
         const buf = Buffer.from('hello');
         expect(() => client.write(buf, 0, buf.length)).toThrow(
-          'socket has been shutdown'
+          'SeqpacketSocket has been destroyed'
         );
       });
     });
@@ -481,7 +482,7 @@ if (!kIsDarwin) {
             });
           });
           expect(buf.length).toBe(data.length);
-          expect(buf.toString('hex')).toBe(data.toString('hex'))
+          expect(buf.toString('hex')).toBe(data.toString('hex'));
         }
 
         const smallSize = 32 * 1024;
@@ -492,18 +493,68 @@ if (!kIsDarwin) {
           client.write(data, 0, data.length);
           const buf = await new Promise<Buffer>((resolve, reject) => {
             socket.once('data', (buf) => {
-              resolve(buf)
+              resolve(buf);
             });
           });
 
           expect(buf.length).toBe(smallSize);
-          expect(buf.toString('hex')).toBe(data.slice(0, buf.length).toString('hex'))
+          expect(buf.toString('hex')).toBe(
+            data.slice(0, buf.length).toString('hex')
+          );
         }
+      });
+    });
+
+    it('should receive messages in order and keep messages length', async () => {
+      await createTestPair(async (args) => {
+        const { client, socket } = args;
+
+        const dataToSend: Buffer[] = [];
+
+        for (let i = 0; i < 10; i += 1) {
+          const buf = Buffer.allocUnsafe(Math.random() * 100 + 1);
+          dataToSend.push(buf);
+        }
+
+        let receivedIndex = 0;
+
+        socket.on('data', (buf) => {
+          expect(buf.toString('hex')).toBe(
+            dataToSend[receivedIndex].toString('hex')
+          );
+          receivedIndex += 1;
+        });
+
+        const { p, resolve } = createDefer();
+        socket.on('end', () => {
+          resolve();
+        });
+
+        for (const data of dataToSend) {
+          client.write(data, 0, data.length)
+        }
+        client.end()
+
+        await p;
+
+        expect(receivedIndex).toBe(dataToSend.length);
+      });
+    });
+
+    it('should ref', async () => {
+      await createTestPair(async (args) => {
+        // TODO how to test
+        const { client, server, socket } = args;
+
+        server.ref();
+        server.unref();
+        client.ref();
+        client.unref();
       });
     });
   });
 } else {
   describe('seqpacket', () => {
-    it('(tests skipped)', () => {})
-  })
+    it('(tests skipped)', () => {});
+  });
 }

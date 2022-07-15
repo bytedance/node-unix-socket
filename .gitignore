@@ -8,7 +8,6 @@ out
 temp
 dist
 etc
-docs
 
 package-lock.json
 js/**/*.js

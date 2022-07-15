@@ -13,6 +13,8 @@ export function seqConnect(ee: object, serverPath: string): void
 export function seqWrite(ee: object, buf: Buffer, offset: number, length: number, cb?: (...args: any[]) => any | undefined | null): void
 export function seqClose(ee: object): void
 export function seqShutdownWhenFlushed(ee: object): void
+export function seqRef(ee: object): void
+export function seqUnref(ee: object): void
 export function dgramCreateSocket(ee: object): void
 export function dgramStartRecv(ee: object): void
 export function dgramClose(ee: object): void

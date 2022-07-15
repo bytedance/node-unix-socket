@@ -157,6 +157,22 @@ impl HandleData {
   }
 }
 
+pub trait UvRefence {
+  fn get_handle(&self) -> *mut sys::uv_poll_t;
+
+  fn refer(&self) {
+    let ptr = self.get_handle();
+
+    unsafe { sys::uv_ref(ptr as *mut _ as *mut sys::uv_handle_t) }
+  }
+
+  fn urnef(&self) {
+    let ptr = self.get_handle();
+
+    unsafe { sys::uv_unref(ptr as *mut _ as *mut sys::uv_handle_t) }
+  }
+}
+
 fn bind_socket(env: Env, fd: i32, domain: i32, port: JsNumber, ip: JsString) -> Result<JsNumber> {
   let mut on: i32 = 1;
   resolve_libc_err(unsafe {
@@ -208,11 +224,7 @@ fn bind_socket(env: Env, fd: i32, domain: i32, port: JsNumber, ip: JsString) -> 
 
   // bind socket
   resolve_libc_err(unsafe {
-    libc::bind(
-      fd,
-      &mut addr as *mut _ as *mut libc::sockaddr,
-      addr_len,
-    )
+    libc::bind(fd, &mut addr as *mut _ as *mut libc::sockaddr, addr_len)
   })?;
 
   Ok(env.create_int32(fd)?)
@@ -245,7 +257,7 @@ fn socket_new_so_reuseport_fd(
     Ok(fd) => fd,
     Err(e) => {
       close(fd).unwrap();
-      return Err(e)
+      return Err(e);
     }
   };
 

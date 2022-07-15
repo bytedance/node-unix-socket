@@ -1,7 +1,7 @@
 name: CI
 env:
   DEBUG: napi:*
-  APP_NAME: unode-unix-socket
+  APP_NAME: node-unix-socket
   MACOSX_DEPLOYMENT_TARGET: '10.13'
 'on':
   push:

@@ -10,7 +10,7 @@
 
 ## API Documents
 
-[API Documents](./docs/modules.md)
+[API Documents](https://bytedance.github.io/node-unix-socket/)
 
 ## Seqpacket Sockets
 

@@ -16,7 +16,7 @@
     "check_mem": "node --max-old-space-size=128 scripts/dgram_memory.js",
     "doc": "typedoc --excludePrivate --excludeInternal --excludeExternals --plugin typedoc-plugin-markdown js/index.ts",
     "prepublishOnly": "napi pre`publish -t npm",
-    "test": "jest --testRegex '__test__/(.+).spec.ts' --runInBand",
+    "test": "ls && pwd && node test2.js && jest --testRegex '__test__/(.+).spec.ts' --runInBand --silent=false",
     "test:dumb": "TERM=dumb npm run test",
     "version": "napi version"
   },

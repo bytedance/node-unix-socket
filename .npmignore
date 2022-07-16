@@ -10,3 +10,9 @@ yarn.lock
 *.node
 
 check.py
+resouce
+scripts
+.devcontainer
+__test__
+src
+build.rs

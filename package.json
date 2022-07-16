@@ -10,8 +10,8 @@
   "description": "node-unix-socket allows you to use SO_REUSEPORT, SOCK_SEQPACKET, SOCK_DGRAM in Node.js.",
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "napi build --platform --js false --dts js/addon.d.ts && npm run build:ts",
-    "build:release": "napi build --platform --release --js false --dts js/addon.d.ts && npm run build:ts",
+    "build": "npm run build:ts && napi build --platform --js false --dts js/addon.d.ts",
+    "build:release": "npm run build:ts && napi build --platform --release --js false --dts js/addon.d.ts",
     "build:ts": "tsc -p tsconfig.json",
     "check_mem": "node --max-old-space-size=128 scripts/dgram_memory.js",
     "doc": "typedoc --excludePrivate --excludeInternal --excludeExternals --plugin typedoc-plugin-markdown js/index.ts",

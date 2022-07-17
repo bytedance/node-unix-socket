@@ -120,6 +120,7 @@ jobs:
           - '12'
           - '14'
           - '16'
+          - '18'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -157,6 +158,7 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
         node:
+          - '12'
           - '14'
           - '16'
           - '18'

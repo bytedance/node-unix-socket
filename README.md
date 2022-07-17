@@ -1,5 +1,7 @@
 # node-unix-socket
 
+![npm_bandage](https://img.shields.io/npm/v/node-unix-socket) ![github_ci_status](https://github.com/bytedance/node-unix-socket/workflows/CI/badge.svg)
+
 `node-unix-socket` allows you to use some nonblocking unix sockets that are currently not supported by Node.js native modules, including:
 
 - unix seqpacket(`SOCK_SEQPACKET`) sockets
@@ -7,6 +9,20 @@
 - Using `SO_REUSEPORT` enabled TCP [net.Server](https://nodejs.org/dist/latest-v16.x/docs/api/net.html#class-netserver)
 
 `node-unix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html). This lib uses [libuv](https://libuv.org/) inside Node.js so that it won't introduce any other asynchronous runtimes.
+
+## Tested Platforms & Node.js
+
+|Platform|Node.js|DgramSocket|Seqpacket|
+|---|---|---|---|
+|x64 Linux|12 + LTS|✅|✅|
+|x64 Darwin|12 + LTS|✅||
+|aarch64 Darwin|12 + LTS|✅||
+
+## Installation
+
+```
+npm i node-unix-socket
+```
 
 ## API Documents
 

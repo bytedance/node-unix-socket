@@ -1,0 +1,2 @@
+scripts/**.js linguist-detectable=false
+js/__test__/**.js linguist-detectable=false

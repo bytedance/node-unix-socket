@@ -1,15 +1,15 @@
 {
-  "name": "node-unix-socket-darwin-arm64",
+  "name": "node-unix-socket-linux-x64-musl",
   "version": "0.2.0",
   "os": [
-    "darwin"
+    "linux"
   ],
   "cpu": [
-    "arm64"
+    "x64"
   ],
-  "main": "node-unix-socket.darwin-arm64.node",
+  "main": "node-unix-socket.linux-x64-musl.node",
   "files": [
-    "node-unix-socket.darwin-arm64.node"
+    "node-unix-socket.linux-x64-musl.node"
   ],
   "description": "node-unix-socket allows you to use SO_REUSEPORT, SOCK_SEQPACKET, SOCK_DGRAM in Node.js.",
   "author": {
@@ -19,5 +19,8 @@
   "license": "MIT",
   "engines": {
     "node": ">= 10"
-  }
+  },
+  "libc": [
+    "musl"
+  ]
 }

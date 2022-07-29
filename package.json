@@ -25,7 +25,7 @@
     "triples": {
       "defaults": false,
       "additional": [
-        "armv7-unknown-linux-gnu",
+        "armv7-unknown-linux-gnueabihf",
         "x86_64-apple-darwin",
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-musl",

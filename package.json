@@ -1,6 +1,6 @@
 {
   "name": "node-unix-socket",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "main": "js/index.js",
   "types": "js/index.d.ts",
   "author": {
@@ -10,12 +10,12 @@
   "description": "node-unix-socket allows you to use SO_REUSEPORT, SOCK_SEQPACKET, SOCK_DGRAM in Node.js.",
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "npm run build:ts && napi build --platform --js false --dts js/addon.d.ts",
-    "build:release": "npm run build:ts && napi build --platform --release --js false --dts js/addon.d.ts",
+    "build:debug": "npm run build:ts && napi build --js false --dts js/addon.d.ts --platform",
+    "build": "npm run build:ts && napi build --platform --js false --dts js/addon.d.ts --release",
     "build:ts": "tsc -p tsconfig.json",
     "check_mem": "node --max-old-space-size=128 scripts/dgram_memory.js",
     "doc": "typedoc --excludePrivate --excludeInternal --excludeExternals js/index.ts",
-    "prepublishOnly": "napi pre`publish -t npm",
+    "prepublishOnly": "npm run build:ts && napi prepublish -t npm",
     "test": "jest --testRegex '__test__/(.+).spec.ts' --runInBand --silent=false",
     "test:dumb": "TERM=dumb npm run test",
     "version": "napi version"
@@ -23,14 +23,21 @@
   "napi": {
     "name": "node-unix-socket",
     "triples": {
+      "defaults": false,
       "additional": [
-        "aarch64-apple-darwin"
+        "armv7-unknown-linux-gnueabihf",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "x86_64-unknown-linux-gnu"
       ]
     }
   },
   "license": "MIT",
   "devDependencies": {
-    "@napi-rs/cli": "^2.6.2",
+    "@napi-rs/cli": "^2.10.3",
     "@types/jest": "^27.5.0",
     "@types/node": "^17.0.31",
     "jest": "^27.5.1",

@@ -17,5 +17,6 @@ js/**/*.d.ts
 js/tsdoc-metadata.json
 !js/addon.js
 test.ts
+docs
 
 check.py

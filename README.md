@@ -1,5 +1,7 @@
 # node-unix-socket
 
+![npm_bandage](https://img.shields.io/npm/v/node-unix-socket) ![github_ci_status](https://github.com/bytedance/node-unix-socket/workflows/CI/badge.svg)
+
 `node-unix-socket` allows you to use some nonblocking unix sockets that are currently not supported by Node.js native modules, including:
 
 - unix seqpacket(`SOCK_SEQPACKET`) sockets
@@ -8,17 +10,33 @@
 
 `node-unix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html). This lib uses [libuv](https://libuv.org/) inside Node.js so that it won't introduce any other asynchronous runtimes.
 
+## Tested Platforms & Node.js
+
+|Platform|Node.js|DgramSocket|Seqpacket|
+|---|---|---|---|
+|x64 Linux|12 + LTS|✅|✅|
+|x64 Darwin|12 + LTS|✅||
+|aarch64 Darwin|12 + LTS|✅||
+
+## Installation
+
+```
+npm i node-unix-socket
+```
+
 ## API Documents
 
-[API Documents](./docs/modules.md)
+[API Documents](https://bytedance.github.io/node-unix-socket/)
 
 ## Seqpacket Sockets
 
-`SOCK_SEQPACKET` sockets are like `SOCK_DGRAM` sockets and they will keep message boundaries.
+`SOCK_SEQPACKET` sockets are like `SOCK_STREAM` sockets while they keeps message boundaries.
 
 Note that `SOCK_SEQPACKET` sockets don't work on MacOS.
 
 ### Example
+
+[Online Example](https://codesandbox.io/s/node-unix-seqpacket-socket-n3hd8l?file=/index.js)
 
 ```js
 const { SeqpacketServer, SeqpacketSocket } = require('node-unix-socket');
@@ -54,6 +72,8 @@ client.connect(bindPath, () => {
 ## Dgram Sockets
 
 ### Example
+
+[Online Example](https://codesandbox.io/s/node-unix-dgram-socket-76cyyu?file=/index.js)
 
 ```js
 const { DgramSocket } = require('node-unix-socket');
@@ -104,6 +124,8 @@ For example, the arrow in the image below shows cpu usage of a PM2 primary proce
 Note that `SO_REUSEPORT` might behave much differently across operating systems. See this [post](https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ) for more information.
 
 ### Example
+
+[Online Http Server Example](https://codesandbox.io/s/node-so-reuseport-net-server-no9mvm?file=/index.js)
 
 ```js
 const { createReuseportFd } = require('node-unix-socket');

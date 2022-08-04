@@ -7,7 +7,7 @@ export type NotifyCb = () => void;
 
 /**
  * SeqpacketServer is used to create a SOCK_SEQPACKET server.
- * Note that sockets of SOCK_SEQPACKET don't works on MacOS and currently SeqpacketServer doesn't work with `cluster` module, i.e. you can share a SeqpacketServer across different Node.js processes.
+ * Note that sockets of SOCK_SEQPACKET don't works on MacOS and currently SeqpacketServer doesn't work with `cluster` module, i.e. you can't share a SeqpacketServer across different Node.js processes.
  *
  * SeqpacketServer is also an `EventEmitter` and will emit events including:
  *
@@ -234,7 +234,8 @@ export class SeqpacketSocket extends EventEmitter {
       length = buf.length
     }
     this.checkDestroyed();
-    this.wrap.write(buf, offset, length, cb);
+    const v = offset || 0;
+    this.wrap.write(buf, offset || 0, length || buf.length, cb);
   }
 
   /**

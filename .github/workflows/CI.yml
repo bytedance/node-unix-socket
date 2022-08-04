@@ -16,6 +16,13 @@ env:
       - .editorconfig
       - docs/**
   pull_request: null
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the npm package.'
+        required: true
+        type: boolean
+        default: false
 jobs:
   build:
     if: '!contains(github.event.head_commit.message, ''skip ci'')'
@@ -29,13 +36,6 @@ jobs:
             build: |
               yarn build
               strip -x *.node
-          - host: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
-            build: |-
-              set -e &&
-              yarn build --target x86_64-unknown-linux-gnu &&
-              strip *.node
           - host: macos-latest
             target: aarch64-apple-darwin
             build: |
@@ -46,6 +46,41 @@ jobs:
               export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
               yarn build --target aarch64-apple-darwin
               strip -x *.node
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |-
+              set -e &&
+              yarn build --target x86_64-unknown-linux-gnu &&
+              strip *.node
+          - host: ubuntu-latest
+            target: 'x86_64-unknown-linux-musl'
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: yarn build
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            build: |-
+              set -e &&
+              apt install pkg-config libssl-dev -y &&
+              yarn build --target aarch64-unknown-linux-gnu &&
+              aarch64-unknown-linux-gnu-strip *.node
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |-
+              set -e &&
+              rustup target add aarch64-unknown-linux-musl &&
+              yarn build --target aarch64-unknown-linux-musl &&
+              /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip *.node
+          - host: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            setup: |
+              sudo apt-get update
+              sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf -y
+            build: |-
+              yarn build --target=armv7-unknown-linux-gnueabihf &&
+              arm-linux-gnueabihf-strip *.node
     name: stable - ${{ matrix.settings.target }} - node@16
     runs-on: ${{ matrix.settings.host }}
     steps:
@@ -57,7 +92,6 @@ jobs:
           node-version: 16
           check-latest: true
           cache: yarn
-          architecture: ${{ matrix.settings.architecture }}
       - name: Install
         uses: actions-rs/toolchain@v1
         if: ${{ !matrix.settings.docker }}
@@ -66,21 +100,18 @@ jobs:
           override: true
           toolchain: stable
           target: ${{ matrix.settings.target }}
-      - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        if: ${{ !matrix.settings.docker }}
-        with:
-          command: generate-lockfile
       - name: Cache cargo
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
-          path: ~/.cargo/registry
-          key: ${{ matrix.settings.target }}-cargo-registry
-      - name: Cache cargo index
-        uses: actions/cache@v2
-        with:
-          path: ~/.cargo/git
-          key: ${{ matrix.settings.target }}-cargo-index
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            .cargo-cache/registry/index/
+            .cargo-cache/registry/cache/
+            .cargo-cache/git/db/
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
       - name: Cache NPM dependencies
         uses: actions/cache@v2
         with:
@@ -90,8 +121,20 @@ jobs:
         run: ${{ matrix.settings.setup }}
         if: ${{ matrix.settings.setup }}
         shell: bash
+      - name: Setup node x86
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        run: yarn config set supportedArchitectures.cpu "ia32"
+        shell: bash
       - name: Install dependencies
         run: yarn install
+      - name: Setup node x86
+        uses: actions/setup-node@v3
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        with:
+          node-version: 16
+          check-latest: true
+          cache: yarn
+          architecture: x86
       - name: Build in docker
         uses: addnab/docker-run-action@v3
         if: ${{ matrix.settings.docker }}
@@ -120,6 +163,7 @@ jobs:
           - '12'
           - '14'
           - '16'
+          - '18'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -157,6 +201,7 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
         node:
+          - '12'
           - '14'
           - '16'
           - '18'
@@ -187,11 +232,11 @@ jobs:
       - name: Test bindings
         run: yarn build:ts && yarn test
   publish:
+    if: ${{github.event.inputs.publish}}
     name: Publish
     runs-on: ubuntu-latest
     needs:
-      - test-linux-x64-gnu-binding
-      - test-macOS-binding
+      - build
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -220,17 +265,8 @@ jobs:
         shell: bash
       - name: Publish
         run: |
-          if git log -1 --pretty=%B | grep "^[0-9]\+\.[0-9]\+\.[0-9]\+$";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --access public
-          elif git log -1 --pretty=%B | grep "^[0-9]\+\.[0-9]\+\.[0-9]\+";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --tag next --access public
-          else
-            echo "Not a release, skipping publish"
-          fi
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+          npm publish --access public
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

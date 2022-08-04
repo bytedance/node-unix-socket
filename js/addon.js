@@ -1,4 +1,4 @@
-const { existsSync, readFileSync, statSync } = require('fs')
+const { existsSync, readFileSync } = require('fs')
 const { join } = require('path')
 
 const { platform, arch } = process
@@ -164,7 +164,7 @@ switch (platform) {
             loadError = e
           }
         } else {
-          localFileExisted = statSync(
+          localFileExisted = existsSync(
             join(__dirname, '../node-unix-socket.linux-x64-gnu.node')
           )
           try {

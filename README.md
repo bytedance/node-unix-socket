@@ -30,7 +30,7 @@ npm i node-unix-socket
 
 ## Seqpacket Sockets
 
-`SOCK_SEQPACKET` sockets are like `SOCK_DGRAM` sockets and they will keep message boundaries.
+`SOCK_SEQPACKET` sockets are like `SOCK_STREAM` sockets while they keeps message boundaries.
 
 Note that `SOCK_SEQPACKET` sockets don't work on MacOS.
 

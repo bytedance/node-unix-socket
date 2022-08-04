@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.2.2
+fix: exclude typescript files in the npm package
+
 ## 0.2.1
 feat: support more platforms
 

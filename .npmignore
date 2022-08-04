@@ -16,3 +16,4 @@ scripts
 __test__
 src
 build.rs
+js/**/*.ts

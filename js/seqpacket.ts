@@ -234,7 +234,8 @@ export class SeqpacketSocket extends EventEmitter {
       length = buf.length
     }
     this.checkDestroyed();
-    this.wrap.write(buf, offset, length, cb);
+    const v = offset || 0;
+    this.wrap.write(buf, offset || 0, length || buf.length, cb);
   }
 
   /**

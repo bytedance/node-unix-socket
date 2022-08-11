@@ -1,5 +1,5 @@
 {
-  "name": "test-linux-arm-gnueabihf",
+  "name": "node-unix-socket-linux-arm-gnueabihf",
   "version": "0.0.0",
   "os": [
     "linux"
@@ -7,9 +7,9 @@
   "cpu": [
     "arm"
   ],
-  "main": "test.linux-arm-gnueabihf.node",
+  "main": "node-unix-socket.linux-arm-gnueabihf.node",
   "files": [
-    "test.linux-arm-gnueabihf.node"
+    "node-unix-socket.linux-arm-gnueabihf.node"
   ],
   "license": "MIT",
   "engines": {

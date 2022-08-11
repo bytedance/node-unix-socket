@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.2.4
+fix: fix wrong package name
+
 ## 0.2.3
 fix: fix missing .d.ts files
 

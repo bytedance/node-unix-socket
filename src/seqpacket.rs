@@ -4,7 +4,7 @@ use std::os::raw::c_int;
 
 use crate::socket::{self, get_loop, sockaddr_from_string, Emitter, HandleData, UvRefence};
 use crate::util::{
-  addr_to_string, buf_into_vec, check_emit, error, get_err, resolve_libc_err, resolve_uv_err,
+  addr_to_string, buf_into_vec, error, get_err, resolve_libc_err, resolve_uv_err,
   set_clo_exec, set_non_block, socket_addr_to_string, uv_err_msg,
 };
 use libc::{sockaddr, sockaddr_un, EAGAIN, EINTR, EINVAL, ENOBUFS, EWOULDBLOCK};

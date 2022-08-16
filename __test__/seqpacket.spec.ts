@@ -599,6 +599,37 @@ if (!kIsDarwin) {
         autoClose: false,
       })
     });
+
+    it('should emit "error" and "close" in sockets when we write after remote sockets closed', async () => {
+      await createTestPair(async (args) => {
+        const { client, server, socket } = args;
+        const { p: pError, resolve: resolveError } = createDefer();
+        const { p: pClose, resolve: resolveClose } = createDefer();
+        const { p: pCb, resolve: resolveCb } = createDefer();
+
+        client.on('error', () => {
+          resolveError();
+        })
+
+        client.on('close', () => {
+          resolveClose();
+        })
+
+        socket.destroy();
+
+        // TODO should callback get called when sockets get closed?
+        client.write(Buffer.alloc(10), 0, 10);
+        // client.write(Buffer.alloc(10), 0, 10, () => {
+        //   resolveCb();
+        // });
+
+        // await pCb;
+        await pError;
+        await pClose;
+
+        server.close();
+      });
+    });
   });
 } else {
   describe('seqpacket', () => {

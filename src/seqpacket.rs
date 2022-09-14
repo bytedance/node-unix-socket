@@ -16,14 +16,26 @@ const DEFAULT_READ_BUF_SIZE: usize = 256 * 1024;
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone)]
 enum State {
+  /**
+   * Socket created.
+   */
   NewSocket = 1,
+  /**
+   * Socket is marked to be shut down(write end).
+   */
   ShuttingDown = 2,
+  /**
+   * Socket shut down(write end).
+   */
   ShutDown = 3,
   // Stopped = 4,
+  /**
+   * Both read side and write side of the socket have been closed.
+   */
   Closed = 5,
 }
 
-struct MsgItem {
+struct MsgInfoItem {
   msg: Vec<u8>,
   cb: Option<Ref<()>>,
 }
@@ -33,7 +45,10 @@ pub struct SeqpacketSocketWrap {
   fd: i32,
   env: Env,
   handle: *mut sys::uv_poll_t,
-  msg_queue: LinkedList<MsgItem>,
+  msg_queue: LinkedList<MsgInfoItem>,
+  /**
+   * The length of bytes that we use to read buffers.
+   */
   read_buf_size: usize,
   state: State,
   poll_events: i32,
@@ -46,6 +61,15 @@ impl UvRefence for SeqpacketSocketWrap {
   }
 }
 
+/**
+ * We implement sockets with uv_poll_t:
+ *
+ * uv_poll_init()
+ * uv_poll_start()
+ *   -> UV_READABLE, read(), socket()
+ *   -> UV_WRITABLE, connect(), write()
+ * uv_poll_stop()
+ */
 #[napi]
 impl SeqpacketSocketWrap {
   #[napi(constructor)]
@@ -249,7 +273,7 @@ impl SeqpacketSocketWrap {
     }
   }
 
-  fn finish_msg(&self, mut msg: MsgItem) -> Result<()> {
+  fn finish_msg(&self, mut msg: MsgInfoItem) -> Result<()> {
     let env = self.env;
 
     if msg.cb.is_none() {
@@ -282,7 +306,7 @@ impl SeqpacketSocketWrap {
   }
 
   fn _flush(&mut self) -> Result<()> {
-    let mut finished_msgs: LinkedList<MsgItem> = LinkedList::new();
+    let mut finished_msgs: LinkedList<MsgInfoItem> = LinkedList::new();
 
     loop {
       let msg = self.msg_queue.pop_front();
@@ -547,7 +571,7 @@ impl SeqpacketSocketWrap {
     let offset = offset.get_int32()?;
     let length = length.get_int32()?;
     let msg = buf_into_vec(buf, offset, length)?;
-    self.msg_queue.push_back(MsgItem {
+    self.msg_queue.push_back(MsgInfoItem {
       msg,
       cb: match cb {
         Some(cb) => {
@@ -584,39 +608,22 @@ extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
   };
 }
 
-// TODO use macro to simplify these
-extern "C" fn on_socket(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
-  if status == sys::uv_errno_t::UV_ECANCELED as i32 {
-    return;
-  }
+macro_rules! on_event {
+  ($event: ident, $fn: ident) => {
+    extern "C" fn $event(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
+      if status == sys::uv_errno_t::UV_ECANCELED as i32 {
+        return;
+      }
 
-  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
-  let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
-  wrap.handle_socket(status, events);
-
-  Box::into_raw(data);
+      unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
+      let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
+      let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
+      wrap.$fn(status, events);
+      Box::into_raw(data);
+    }
+  };
 }
 
-extern "C" fn on_connect(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
-  if status == sys::uv_errno_t::UV_ECANCELED as i32 {
-    return;
-  }
-
-  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
-  let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
-  wrap.handle_connect(status, events);
-  Box::into_raw(data);
-}
-
-extern "C" fn on_io(handle: *mut sys::uv_poll_t, status: c_int, events: c_int) {
-  if status == sys::uv_errno_t::UV_ECANCELED as i32 {
-    return;
-  }
-  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
-  let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
-  let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
-  wrap.handle_io(status, events);
-  Box::into_raw(data);
-}
+on_event!(on_socket, handle_socket);
+on_event!(on_connect, handle_connect);
+on_event!(on_io, handle_io);

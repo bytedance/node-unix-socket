@@ -66,6 +66,9 @@ impl Drop for Emitter {
   }
 }
 
+/**
+ * Helper to use the emit() of js "EventEmitter".
+ */
 impl Emitter {
   pub fn new(env: Env, emit: JsFunction) -> Result<Self> {
     let emit_ref = env.create_reference(emit)?;
@@ -154,6 +157,10 @@ impl HandleData {
   }
 }
 
+/**
+ * Add references to prevent Node.js from automatically exiting if there is
+ * no references in the loop.
+ */
 pub trait UvRefence {
   fn get_handle(&self) -> *mut sys::uv_poll_t;
 

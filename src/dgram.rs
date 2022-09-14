@@ -23,7 +23,7 @@ fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
   String::from_utf8(copy).map_err(|_| error("failed to parse i8 slice as string".to_string()))
 }
 
-struct MsgItem {
+struct MsgInfoItem {
   msg: Vec<u8>,
   sockaddr: sockaddr_un,
   cb: Option<Ref<()>>,
@@ -34,10 +34,13 @@ pub struct DgramSocketWrap {
   fd: i32,
   env: Env,
   handle: *mut sys::uv_poll_t,
-  msg_queue: LinkedList<MsgItem>,
+  msg_queue: LinkedList<MsgInfoItem>,
   emitter: Emitter,
 }
 
+/**
+ * We implement sockets with uv_poll_t like how we do in SeqpackSocket.
+ */
 #[napi]
 impl DgramSocketWrap {
   #[napi(constructor)]
@@ -271,7 +274,7 @@ impl DgramSocketWrap {
       Some(cb) => Some(env.create_reference(cb)?),
     };
 
-    let m = MsgItem {
+    let m = MsgInfoItem {
       sockaddr: addr,
       msg,
       cb,

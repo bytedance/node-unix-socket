@@ -7,8 +7,8 @@ version = "0.0.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "2.2.0", features = ["napi3"] }
-napi-derive = "2.2.0"
+napi = { version = "2.10.0", features = ["napi3"] }
+napi-derive = "2.9.1"
 libc = "0.2.123"
 nix = "0.23"
 uv-sys = "0.1"

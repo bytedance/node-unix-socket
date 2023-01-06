@@ -175,6 +175,12 @@ setInterval(() => {
 
 [CONTRIBUTING.md](./CONTRIBUTING.md)
 
+## Development
+
+1. Setup rust and Node.js.
+2. Modify the code.
+2. `npm run build && npm run test`
+
 ## LICENSE
 
 MIT

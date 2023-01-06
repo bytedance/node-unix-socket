@@ -290,4 +290,12 @@ export class SeqpacketSocket extends EventEmitter {
     this.destroyed = true;
     this.wrap.close();
   }
+
+  /**
+   * For test only
+   * @ignore
+   */
+  _state() {
+    return this.wrap.state()
+  }
 }

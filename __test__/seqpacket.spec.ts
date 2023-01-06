@@ -361,6 +361,11 @@ if (!kIsDarwin) {
 
       expect(() => client.connect(kServerpath)).toThrow();
 
+      // should close the socket if connecting failed
+      expect(client._state()).toBe(5);
+
+      client.destroy();
+      // it should be okay to destroy multiple times
       client.destroy();
     });
 

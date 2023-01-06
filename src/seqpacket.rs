@@ -4,8 +4,8 @@ use std::os::raw::c_int;
 
 use crate::socket::{self, get_loop, sockaddr_from_string, Emitter, HandleData, UvRefence};
 use crate::util::{
-  addr_to_string, buf_into_vec, error, get_err, resolve_libc_err, resolve_uv_err,
-  set_clo_exec, set_non_block, socket_addr_to_string, uv_err_msg,
+  addr_to_string, buf_into_vec, error, get_err, resolve_libc_err, resolve_uv_err, set_clo_exec,
+  set_non_block, socket_addr_to_string, uv_err_msg,
 };
 use libc::{sockaddr, sockaddr_un, EAGAIN, EINTR, EINVAL, ENOBUFS, EWOULDBLOCK};
 use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
@@ -118,6 +118,11 @@ impl SeqpacketSocketWrap {
     let handle_data = Box::into_raw(Box::new(HandleData::new(env, this_obj)?));
     unsafe { (*self.handle).data = handle_data as *mut _ };
     Ok(())
+  }
+
+  #[napi]
+  pub fn state(&self) -> i32 {
+    self.state as i32
   }
 
   #[napi]
@@ -534,15 +539,13 @@ impl SeqpacketSocketWrap {
 
     let err = errno();
 
-    if ret == -1 && err != 0 {
-      if err == libc::EINPROGRESS {
-        // not an error
-      } else if err == libc::ECONNRESET || err == EINVAL {
+    // libc::EINPROGRESS is not an error
+    if ret == -1 && err != 0 && err != libc::EINPROGRESS {
+      if err == libc::ECONNRESET || err == EINVAL {
         // TODO should we delay error?
-        resolve_libc_err(ret)?;
-      } else {
-        resolve_libc_err(ret)?;
       }
+      self.close()?;
+      resolve_libc_err(ret)?;
     }
 
     unsafe {
@@ -600,11 +603,13 @@ impl SeqpacketSocketWrap {
 }
 
 extern "C" fn on_close(handle: *mut sys::uv_handle_t) {
-  unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
+  unsafe {
+    assert!(!(*handle).data.is_null(), "unexpected null handle data");
+  };
   unsafe {
     let mut data = Box::from_raw((*handle).data as *mut HandleData);
     data.unref().unwrap();
-    Box::from_raw(handle);
+    let _ = Box::from_raw(handle);
   };
 }
 
@@ -615,7 +620,9 @@ macro_rules! on_event {
         return;
       }
 
-      unsafe { assert!(!(*handle).data.is_null(), "unexpected null handle data"); };
+      unsafe {
+        assert!(!(*handle).data.is_null(), "unexpected null handle data");
+      };
       let data = unsafe { Box::from_raw((*handle).data as *mut HandleData) };
       let wrap = data.inner_mut_ref::<&mut SeqpacketSocketWrap>().unwrap();
       wrap.$fn(status, events);

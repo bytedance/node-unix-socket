@@ -8,6 +8,7 @@ export function socketClose(fd: number): void
 export class SeqpacketSocketWrap {
   constructor(ee: object, fd?: number | undefined | null)
   init(thisObj: object): void
+  state(): number
   close(): void
   shutdownWrite(): void
   uvRefer(): void

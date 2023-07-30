@@ -8,7 +8,11 @@
 - unix datagram(`SOCK_DGRAM`) sockets
 - Using `SO_REUSEPORT` enabled TCP [net.Server](https://nodejs.org/dist/latest-v16.x/docs/api/net.html#class-netserver)
 
-`node-unix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html). This lib uses [libuv](https://libuv.org/) inside Node.js so that it won't introduce any other asynchronous runtimes.
+`node-unix-socket` is a [napi-rs](https://napi.rs/) based [Node.js addons](https://nodejs.org/docs/latest-v16.x/api/addons.html) and:
+- This lib bases on n-api and is pre-compiled so that it doesn't require compilation environments if yours is pre-built supported.
+- This lib won't introduce any other asynchronous runtimes as it uses [libuv](https://libuv.org/) inside Node.js.
+
+We use `SOCK_SEQPACKET` sockets for in our internal APM.
 
 ## Tested Platforms & Node.js
 
@@ -170,6 +174,12 @@ setInterval(() => {
 ## CONTRIBUTING
 
 [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+## Development
+
+1. Setup rust and Node.js.
+2. Modify the code.
+2. `npm run build && npm run test`
 
 ## LICENSE
 

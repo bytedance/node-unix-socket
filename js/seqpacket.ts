@@ -222,7 +222,7 @@ export class SeqpacketSocket extends EventEmitter {
   }
 
   /**
-   * Sends data on the socket.
+   * Sends data on the socket. The `cb` is called when data is written to operating system.
    * @param buf
    * @param offset
    * @param length
@@ -289,5 +289,13 @@ export class SeqpacketSocket extends EventEmitter {
     }
     this.destroyed = true;
     this.wrap.close();
+  }
+
+  /**
+   * For test only
+   * @ignore
+   */
+  _state() {
+    return this.wrap.state()
   }
 }

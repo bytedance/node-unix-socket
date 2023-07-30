@@ -1,6 +1,6 @@
 {
   "name": "node-unix-socket",
-  "version": "0.2.2",
+  "version": "0.2.5",
   "main": "js/index.js",
   "types": "js/index.d.ts",
   "author": {

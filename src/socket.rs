@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use crate::util::{error, get_err, resolve_libc_err, resolve_uv_err};
 use libc::{c_void, sockaddr_storage, sockaddr_un};
-use napi::{Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result, bindgen_prelude::FromNapiValue, NapiValue};
+use napi::{Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result, bindgen_prelude::FromNapiValue};
 use uv_sys::sys;
 
 pub(crate) fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {
@@ -66,6 +66,9 @@ impl Drop for Emitter {
   }
 }
 
+/**
+ * Helper to use the emit() of js "EventEmitter".
+ */
 impl Emitter {
   pub fn new(env: Env, emit: JsFunction) -> Result<Self> {
     let emit_ref = env.create_reference(emit)?;
@@ -154,6 +157,10 @@ impl HandleData {
   }
 }
 
+/**
+ * Add references to prevent Node.js from automatically exiting if there is
+ * no references in the loop.
+ */
 pub trait UvRefence {
   fn get_handle(&self) -> *mut sys::uv_poll_t;
 

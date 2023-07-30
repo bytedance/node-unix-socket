@@ -9,7 +9,12 @@
 <li>unix datagram(<code>SOCK_DGRAM</code>) sockets</li>
 <li>Using <code>SO_REUSEPORT</code> enabled TCP <a href="https://nodejs.org/dist/latest-v16.x/docs/api/net.html#class-netserver">net.Server</a></li>
 </ul>
-<p><code>node-unix-socket</code> is a <a href="https://napi.rs/">napi-rs</a> based <a href="https://nodejs.org/docs/latest-v16.x/api/addons.html">Node.js addons</a>. This lib uses <a href="https://libuv.org/">libuv</a> inside Node.js so that it won&#39;t introduce any other asynchronous runtimes.</p>
+<p><code>node-unix-socket</code> is a <a href="https://napi.rs/">napi-rs</a> based <a href="https://nodejs.org/docs/latest-v16.x/api/addons.html">Node.js addons</a> and:</p>
+<ul>
+<li>This lib bases on n-api and is pre-compiled so that it doesn&#39;t require compilation environments if yours is pre-built supported.</li>
+<li>This lib won&#39;t introduce any other asynchronous runtimes as it uses <a href="https://libuv.org/">libuv</a> inside Node.js.</li>
+</ul>
+<p>We use <code>SOCK_SEQPACKET</code> sockets for in our internal APM.</p>
 
 <a href="#tested-platforms-amp-nodejs" id="tested-platforms-amp-nodejs" style="color: inherit; text-decoration: none;">
   <h2>Tested Platforms &amp; Node.js</h2>
@@ -98,6 +103,15 @@
   <h2>CONTRIBUTING</h2>
 </a>
 <p><a href="./CONTRIBUTING.md">CONTRIBUTING.md</a></p>
+
+<a href="#development" id="development" style="color: inherit; text-decoration: none;">
+  <h2>Development</h2>
+</a>
+<ol>
+<li>Setup rust and Node.js.</li>
+<li>Modify the code.</li>
+<li><code>npm run build &amp;&amp; npm run test</code></li>
+</ol>
 
 <a href="#license" id="license" style="color: inherit; text-decoration: none;">
   <h2>LICENSE</h2>

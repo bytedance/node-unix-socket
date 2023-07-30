@@ -18,5 +18,6 @@ js/tsdoc-metadata.json
 !js/addon.js
 test.ts
 docs
+!./docs/google38940b23fa0e04ca.html
 
 check.py

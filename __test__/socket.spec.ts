@@ -1,5 +1,5 @@
 import * as net from 'net'
-import { createReuseportFd as createFd, closeFd  } from '../js/index'
+import { createReuseportFd as createFd, closeFd } from '../js/index'
 import { hasIPv6 } from './util'
 
 describe('tcp', () => {
@@ -8,11 +8,13 @@ describe('tcp', () => {
       const host = '0.0.0.0'
       let port = 0;
 
-      async function createServer() {
+      async function createServer(): Promise<net.Server> {
         const fd = createFd(port, host);
 
         const server = await new Promise<net.Server>((resolve, reject) => {
-          const server = net.createServer()
+          const server = net.createServer({
+            noDelay: true,
+          })
 
           server.listen({
             fd,
@@ -26,14 +28,14 @@ describe('tcp', () => {
         return server
       }
 
-      const servers = [];
+      const servers: net.Server[] = [];
       for (let i = 0; i < 5; i += 1) {
         const server = await createServer()
         servers.push(server);
       }
 
       const pList = servers.map(server => {
-        return new Promise((resolve, reject) => {
+        return new Promise<Buffer>((resolve, reject) => {
           server.once('connection', (socket) => {
             socket.on('data', buf => {
               resolve(buf)
@@ -55,7 +57,7 @@ describe('tcp', () => {
       servers.forEach(server => server.close());
     })
 
-    if (hasIPv6())  {
+    if (hasIPv6()) {
       it('should work with ipv6', async () => {
         const host = '::1'
         let port = 0;
@@ -63,7 +65,9 @@ describe('tcp', () => {
         const fd = createFd(port, host);
 
         const server = await new Promise<net.Server>((resolve, reject) => {
-          const server = net.createServer()
+          const server = net.createServer({
+            noDelay: true,
+          })
 
           server.listen({
             fd,
@@ -72,7 +76,7 @@ describe('tcp', () => {
           })
         })
         port = (server.address() as any).port
-        const p = new Promise((resolve, reject) => {
+        const p = new Promise<Buffer>((resolve, reject) => {
           server.once('connection', (socket) => {
             socket.on('data', buf => {
               resolve(buf)

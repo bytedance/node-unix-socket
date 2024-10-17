@@ -7,6 +7,7 @@ use crate::util::{
   addr_to_string, buf_into_vec, error, get_err, resolve_libc_err, resolve_uv_err, set_clo_exec,
   set_non_block, socket_addr_to_string, uv_err_msg,
 };
+use crate::uv_handle::{insert_handle, remove_handle};
 use libc::{sockaddr, sockaddr_un, EAGAIN, EINTR, EINVAL, ENOBUFS, EWOULDBLOCK};
 use napi::{Env, JsBuffer, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result};
 use nix::errno::errno;
@@ -97,6 +98,7 @@ impl SeqpacketSocketWrap {
       handle.data = std::ptr::null_mut();
       handle
     }));
+    insert_handle(unsafe { mem::transmute(handle) })?;
 
     let uv_loop = get_loop(&env)?;
     resolve_uv_err(unsafe { sys::uv_poll_init(uv_loop, handle, fd) })?;
@@ -137,6 +139,7 @@ impl SeqpacketSocketWrap {
 
     unsafe {
       sys::uv_close(self.handle as *mut _, Some(on_close));
+      remove_handle(mem::transmute(self.handle))?;
     };
 
     // release msg_queue

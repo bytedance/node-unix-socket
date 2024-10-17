@@ -1,14 +1,14 @@
-// TODO add tests for worker_threads
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as workerThreads from 'worker_threads'
 import { DgramSocket } from '../js/index';
-import { kTmp, silently, createDefer, kServerPath } from './util';
+import { kTmp, silently, createDefer, kServerPath, wait } from './util';
 
 const kClientPath = path.resolve(kTmp, './client.sock');
 const kInvalidPath = path.resolve(kTmp, './A_PATH_THAT_DOESNT_EXIST');
 
-const emptyFn = () => {};
+const emptyFn = () => { };
 
 describe('DgramSocket', () => {
   beforeAll(() => {
@@ -307,5 +307,11 @@ describe('DgramSocket', () => {
     })
     client.close()
     await p
+  });
+
+  it('should not abort in worker_threads', async () => {
+    const worker = new workerThreads.Worker(path.resolve(__dirname, './create_socket.js'))
+    await wait(1000)
+    worker.terminate()
   });
 });

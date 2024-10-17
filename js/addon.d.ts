@@ -5,6 +5,7 @@
 
 export function socketNewSoReuseportFd(domain: string, port: number, ip: string): number
 export function socketClose(fd: number): void
+export function initCleanupHook(): void
 export class SeqpacketSocketWrap {
   constructor(ee: object, fd?: number | undefined | null)
   init(thisObj: object): void

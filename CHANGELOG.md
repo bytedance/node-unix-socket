@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.2.6
+fix: clean up handles in worker_threads environments to prevent aborting
+
 ## 0.2.5
 fix: close the socket if connecting failed
 

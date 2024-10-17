@@ -292,6 +292,13 @@ export class SeqpacketSocket extends EventEmitter {
   }
 
   /**
+   * Alias of "destory".
+   */
+  close() {
+    return this.destroy();
+  }
+
+  /**
    * For test only
    * @ignore
    */

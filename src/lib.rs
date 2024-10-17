@@ -7,3 +7,4 @@ mod seqpacket;
 mod dgram;
 mod util;
 mod socket;
+mod uv_handle;

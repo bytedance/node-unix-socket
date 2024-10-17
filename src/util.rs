@@ -2,8 +2,8 @@ use std::ffi::CStr;
 use std::intrinsics::transmute;
 use std::mem;
 
-use libc::{sockaddr, sockaddr_un, c_char};
-use napi::{self, Error, JsBuffer, Result, JsFunction, JsObject};
+use libc::{c_char, sockaddr, sockaddr_un};
+use napi::{self, Error, JsBuffer, JsFunction, JsObject, Result};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use uv_sys::sys;
@@ -37,8 +37,8 @@ pub(crate) fn socket_addr_to_string(fd: i32) -> Result<String> {
   Ok(addr_to_string(&addr))
 }
 
-pub(crate) fn error(msg: String) -> Error {
-  Error::new(napi::Status::Unknown, msg)
+pub(crate) fn error<T: ToString>(item: T) -> Error {
+  Error::new(napi::Status::Unknown, item.to_string())
 }
 
 pub(crate) fn nix_err(err: Errno) -> Error {
@@ -51,7 +51,8 @@ pub(crate) fn uv_err_msg(errno: i32) -> String {
     let ret = CStr::from_ptr(ret);
     ret
       .to_str()
-      .map_err(|_| error("parsing cstr failed".to_string())).unwrap()
+      .map_err(|_| error("parsing cstr failed".to_string()))
+      .unwrap()
       .to_string()
   };
 

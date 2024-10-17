@@ -2,30 +2,30 @@ name: CI
 env:
   DEBUG: napi:*
   APP_NAME: node-unix-socket
-  MACOSX_DEPLOYMENT_TARGET: '10.13'
-'on':
+  MACOSX_DEPLOYMENT_TARGET: "10.13"
+"on":
   push:
     branches:
       - master
     tags-ignore:
-      - '**'
+      - "**"
     paths-ignore:
-      - '**/*.md'
+      - "**/*.md"
       - LICENSE
-      - '**/*.gitignore'
+      - "**/*.gitignore"
       - .editorconfig
       - docs/**
   pull_request: null
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish the npm package.'
+        description: "Publish the npm package."
         required: true
         type: boolean
         default: false
 jobs:
   build:
-    if: '!contains(github.event.head_commit.message, ''skip ci'')'
+    if: "!contains(github.event.head_commit.message, 'skip ci')"
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +54,7 @@ jobs:
               yarn build --target x86_64-unknown-linux-gnu &&
               strip *.node
           - host: ubuntu-latest
-            target: 'x86_64-unknown-linux-musl'
+            target: "x86_64-unknown-linux-musl"
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: yarn build
           - host: ubuntu-latest
@@ -140,14 +140,14 @@ jobs:
         if: ${{ matrix.settings.docker }}
         with:
           image: ${{ matrix.settings.docker }}
-          options: '-v ${{ env.HOME }}/.cargo/git:/root/.cargo/git -v ${{ env.HOME }}/.cargo/registry:/root/.cargo/registry -v ${{ github.workspace }}:/build -w /build'
+          options: "-v ${{ env.HOME }}/.cargo/git:/root/.cargo/git -v ${{ env.HOME }}/.cargo/registry:/root/.cargo/registry -v ${{ github.workspace }}:/build -w /build"
           run: ${{ matrix.settings.build }}
       - name: Build
         run: ${{ matrix.settings.build }}
         if: ${{ !matrix.settings.docker }}
         shell: bash
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: bindings-${{ matrix.settings.target }}
           path: ${{ env.APP_NAME }}.*.node
@@ -160,10 +160,9 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - '12'
-          - '14'
-          - '16'
-          - '18'
+          - "18"
+          - "20"
+          - "22"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -201,10 +200,9 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
         node:
-          - '12'
-          - '14'
-          - '16'
-          - '18'
+          - "18"
+          - "20"
+          - "22"
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v3

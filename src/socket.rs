@@ -4,7 +4,10 @@ use std::str::FromStr;
 
 use crate::util::{error, get_err, resolve_libc_err, resolve_uv_err};
 use libc::{c_void, sockaddr_storage, sockaddr_un};
-use napi::{Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref, Result, bindgen_prelude::FromNapiValue};
+use napi::{
+  bindgen_prelude::FromNapiValue, Env, JsFunction, JsNumber, JsObject, JsString, JsUnknown, Ref,
+  Result,
+};
 use uv_sys::sys;
 
 pub(crate) fn get_loop(env: &Env) -> Result<*mut sys::uv_loop_t> {

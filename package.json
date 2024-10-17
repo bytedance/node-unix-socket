@@ -1,6 +1,6 @@
 {
   "name": "node-unix-socket",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "main": "js/index.js",
   "types": "js/index.d.ts",
   "author": {
@@ -39,7 +39,7 @@
   "devDependencies": {
     "@napi-rs/cli": "^2.10.3",
     "@types/jest": "^27.5.0",
-    "@types/node": "^17.0.31",
+    "@types/node": "^22.7.6",
     "jest": "^27.5.1",
     "ts-jest": "^27.1.4",
     "typedoc": "^0.22.15",

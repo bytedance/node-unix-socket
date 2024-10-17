@@ -10,7 +10,7 @@ yarn.lock
 *.node
 
 check.py
-resouce
+resource
 scripts
 .devcontainer
 __test__

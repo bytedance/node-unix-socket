@@ -13,6 +13,7 @@ use crate::util::{
   addr_to_string, buf_into_vec, check_emit, error, get_err, i8_slice_into_u8_slice,
   resolve_libc_err, resolve_uv_err, set_clo_exec, set_non_block, socket_addr_to_string,
 };
+use crate::uv_handle::{insert_handle, remove_handle};
 
 #[allow(dead_code)]
 fn string_from_i8_slice(slice: &[i8]) -> Result<String> {
@@ -65,6 +66,7 @@ impl DgramSocketWrap {
       handle.data = std::ptr::null_mut() as *mut _;
       handle
     }));
+    insert_handle(unsafe { mem::transmute(handle) })?;
 
     Ok(Self {
       fd,
@@ -297,6 +299,7 @@ impl DgramSocketWrap {
     unsafe {
       let handle = mem::transmute(self.handle);
       sys::uv_close(handle, Some(on_close));
+      remove_handle(handle)?;
     };
 
     // release Ref<JsFunction> in msg_queue

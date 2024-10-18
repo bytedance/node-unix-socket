@@ -34,7 +34,7 @@ jobs:
             target: x86_64-apple-darwin
             architecture: x64
             build: |
-              yarn build
+              yarn build --target x86_64-apple-darwin
               strip -x *.node
           - host: macos-latest
             target: aarch64-apple-darwin
@@ -198,7 +198,7 @@ jobs:
       matrix:
         settings:
           - host: macos-latest
-            target: x86_64-apple-darwin
+            target: aarch64-apple-darwin
         node:
           - "18"
           - "20"
